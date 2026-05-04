@@ -1,0 +1,7 @@
+<configuration>
+    <input>
+        <net-file value="ingolstadt.net.xml"/>
+        <route-files value="routes_HC1_10pct.rou.xml"/>
+        <additional-files value="cells.poly.xml,cells_edges.add.xml"/>
+    </input>
+</configuration>

@@ -1,0 +1,11 @@
+periods: [HC1_5pct, HC1_10pct, HC2_5pct, HC2_10pct, HC3_5pct, HC3_10pct]
+policies: [nearest, ceiling]
+replications: 15
+base_seed: 42000
+
+paths:
+  cfg_run_dir: ../InTAS_Celdas/cfg_run
+  runs_dir: sim/runs
+
+sumo:
+  bin: sumo

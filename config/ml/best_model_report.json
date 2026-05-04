@@ -1,0 +1,30 @@
+{
+  "model": "catboost_gbdt + isotonic",
+  "with_network": true,
+  "seed": 42,
+  "n_total": 42503,
+  "n_train": 33984,
+  "n_test": 8519,
+  "features_num": [
+    "speed_mean",
+    "speed_std",
+    "accel_mean",
+    "accel_std",
+    "jerk_abs_mean",
+    "stops_count"
+  ],
+  "features_net": [],
+  "features_cat": [
+    "cell_id",
+    "period",
+    "policy"
+  ],
+  "roc_auc_raw": 0.9241101036743028,
+  "ap_raw": 0.9595881518528084,
+  "brier_raw": 0.09400361732395857,
+  "ece_raw": 0.0322919678017261,
+  "roc_auc_cal": 0.925520353582669,
+  "ap_cal": 0.9582193010860134,
+  "brier_cal": 0.09057253423984762,
+  "ece_cal": 1.622197570022495e-17
+}

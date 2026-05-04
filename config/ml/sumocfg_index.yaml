@@ -1,0 +1,7 @@
+sumocfg:
+  HC1_5pct: ../InTAS_Celdas/cfg_run/InTAS_HC1_5pct.sumocfg
+  HC1_10pct: ../InTAS_Celdas/cfg_run/InTAS_HC1_10pct.sumocfg
+  HC2_5pct: ../InTAS_Celdas/cfg_run/InTAS_HC2_5pct.sumocfg
+  HC2_10pct: ../InTAS_Celdas/cfg_run/InTAS_HC2_10pct.sumocfg
+  HC3_5pct: ../InTAS_Celdas/cfg_run/InTAS_HC3_5pct.sumocfg
+  HC3_10pct: ../InTAS_Celdas/cfg_run/InTAS_HC3_10pct.sumocfg
