@@ -33,6 +33,7 @@ python scripts/run_full_reproduction.py
 python scripts/00a_run_sumo_batch.py
 python scripts/00b_extract_bronze_batch.py
 python scripts/00c_build_silver_theory.py
+python scripts/00_run_omnet_obj2_batch.py
 python scripts/01_extract_omnet_kpis.py
 python scripts/01b_prepare_unify_inputs.py
 python scripts/02_unify_metrics.py

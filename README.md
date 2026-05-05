@@ -95,7 +95,8 @@ La arquitectura está separada por responsabilidades:
 flowchart TD
     S0A[00a_run_sumo_batch.py] --> S0B[00b_extract_bronze_batch.py]
     S0B --> S0C[00c_build_silver_theory.py]
-    S0C --> M1[01_extract_omnet_kpis.py]
+    O0[00_run_omnet_obj2_batch.py] --> M1[01_extract_omnet_kpis.py]
+    S0C --> M1
     M1 --> M1B[01b_prepare_unify_inputs.py]
     M1B --> M2[02_unify_metrics.py]
     M2 --> M3[03_build_gold_windows.py]
@@ -157,6 +158,7 @@ InTAS_PRODUCCION_READY/
 │   └── omnet/
 ├── scripts/
 │   ├── run_full_reproduction.py
+│   ├── 00_run_omnet_obj2_batch.py
 │   ├── 00a_run_sumo_batch.py
 │   ├── 00b_extract_bronze_batch.py
 │   ├── 00c_build_silver_theory.py
@@ -327,6 +329,18 @@ Qué significa modo incremental:
 - Si la salida esperada de una etapa ya existe, el paso se omite.
 - Reduce tiempos de re-ejecución en pruebas repetidas.
 
+### `scripts/00_run_omnet_obj2_batch.py`
+
+Responsabilidad:
+
+- Ejecutar corridas batch pareadas de OMNeT++ (baseline vs learned) para el Objetivo 2.
+- Generar archivos `.sca` y `.vec` por cada corrida.
+
+Salidas:
+
+- `reports/final/omnet_batch_summary.json`
+- Archivos crudos en `data/omnet_results/`
+
 ### `scripts/01_extract_omnet_kpis.py`
 
 Responsabilidad:
@@ -482,6 +496,7 @@ Salida:
 | 00A | escenarios SUMO + rutas | XML crudos en `sim/runs/` | simular movilidad desde cero |
 | 00B | XML crudos SUMO | bronze parquet | normalizar insumos de simulación |
 | 00C | bronze + rutas + celdas | silver + referencia analítica | preparar variables supervisadas base |
+| 00  | OMNeT configs + layouts | `.sca` y `.vec` en `data/omnet_results/` | simular red celular y calidad de canal |
 | 01 | `.sca` OMNeT (si existen) | KPIs raw/by-cell | extraer señal de red |
 | 01B | KPI raw + exposure/labels SUMO | `data/kpi/summary_kpis_avg.csv` + `data/mobility_metrics.parquet` | preparar insumos de unificación |
 | 02 | movilidad + KPI summary | `data/unified_metrics.parquet` | consolidar vista movilidad/red |
@@ -668,6 +683,16 @@ INTAS_RUN_SUMO=1 INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
 
 ```bash
 INTAS_FORCE_REBUILD=1 python scripts/run_full_reproduction.py
+```
+
+### Ejecutar por etapas
+
+```bash
+python scripts/00a_run_sumo_batch.py
+python scripts/00b_extract_bronze_batch.py
+python scripts/00c_build_silver_theory.py
+python scripts/00_run_omnet_obj2_batch.py
+python scripts/01_extract_omnet_kpis.py
 ```
 
 ### Ejecutar solo entrenamiento/calibración

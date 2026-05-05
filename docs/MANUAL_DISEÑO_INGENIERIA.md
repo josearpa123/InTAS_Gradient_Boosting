@@ -5,15 +5,16 @@ El sistema se organiza en un pipeline secuencial:
 1. Corridas SUMO batch (XML crudo).
 2. Extracción Bronze (XML -> parquet).
 3. Construcción Silver + referencia analítica.
-4. Extracción OMNeT (si hay insumos crudos).
-5. Preparación de insumos de unificación (KPI summary + mobility metrics).
-6. Unificación de métricas.
-7. Construcción de ventanas (dataset Gold).
-8. Construcción de tabla ML.
-9. Entrenamiento CatBoost + calibración isotónica.
-10. Validación probabilística.
-11. Comparación analítica vs aprendida.
-12. Generación de figuras.
+4. Corridas OMNeT++ baseline/learned (Objetivo 2).
+5. Extracción OMNeT (si hay insumos crudos).
+6. Preparación de insumos de unificación (KPI summary + mobility metrics).
+7. Unificación de métricas.
+8. Construcción de ventanas (dataset Gold).
+9. Construcción de tabla ML.
+10. Entrenamiento CatBoost + calibración isotónica.
+11. Validación probabilística.
+12. Comparación analítica vs aprendida.
+13. Generación de figuras.
 
 ## Contrato de rutas del paquete
 - Datos de entrada y artefactos intermedios: `data/`
