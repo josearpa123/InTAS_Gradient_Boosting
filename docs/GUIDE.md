@@ -30,12 +30,33 @@ python scripts/run_full_reproduction.py
 
 ## 5) Ejecución por etapas
 ```bash
+python scripts/00a_run_sumo_batch.py
+python scripts/00b_extract_bronze_batch.py
+python scripts/00c_build_silver_theory.py
+python scripts/01_extract_omnet_kpis.py
+python scripts/01b_prepare_unify_inputs.py
+python scripts/02_unify_metrics.py
 python scripts/03_build_gold_windows.py
 python scripts/04_build_ml_table.py
 python scripts/05_train_ml_model.py
 python scripts/06_evaluate_probabilistic.py
 python scripts/07_compare_analytic_vs_learned.py
 python scripts/08_generate_figures.py
+```
+
+Con corridas OMNeT++ incluidas en el orquestador:
+```bash
+INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
+```
+
+Desde cero con generación de datasets de movilidad:
+```bash
+INTAS_RUN_SUMO=1 python scripts/run_full_reproduction.py
+```
+
+Modo full integrado (SUMO + OMNeT + ML):
+```bash
+INTAS_RUN_SUMO=1 INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
 ```
 
 ## 6) Alcance de reproducibilidad

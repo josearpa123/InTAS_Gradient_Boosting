@@ -72,12 +72,13 @@ Al ejecutar correctamente el pipeline se obtiene:
 
 ```mermaid
 flowchart LR
-    A[data/] --> B[scripts/01-04 ETL + tabla ML]
-    B --> C[scripts/05 entrenamiento + calibración]
-    C --> D[scripts/06-07 evaluación y comparación]
-    D --> E[scripts/08 figuras finales]
-    E --> F[reports/final]
-    C --> G[reports/ml]
+    A[scenarios/sumo + sim/runs] --> B[scripts/00a-00c: simulación + bronze/silver/theory]
+    B --> C[scripts/01-01B: extracción KPI OMNeT + preparación unify]
+    C --> D[scripts/02-04: unify + gold + tabla ML]
+    D --> E[scripts/05: entrenamiento + calibración]
+    E --> F[scripts/06-08: evaluación + comparación + figuras]
+    F --> G[reports/final]
+    E --> H[reports/ml]
 ```
 
 La arquitectura está separada por responsabilidades:
@@ -92,7 +93,11 @@ La arquitectura está separada por responsabilidades:
 
 ```mermaid
 flowchart TD
-    M1[01_extract_omnet_kpis.py] --> M2[02_unify_metrics.py]
+    S0A[00a_run_sumo_batch.py] --> S0B[00b_extract_bronze_batch.py]
+    S0B --> S0C[00c_build_silver_theory.py]
+    S0C --> M1[01_extract_omnet_kpis.py]
+    M1 --> M1B[01b_prepare_unify_inputs.py]
+    M1B --> M2[02_unify_metrics.py]
     M2 --> M3[03_build_gold_windows.py]
     M3 --> M4[04_build_ml_table.py]
     M4 --> M5[05_train_ml_model.py]
@@ -116,14 +121,14 @@ Interpretación funcional:
 
 ```mermaid
 sequenceDiagram
-    participant D as data/
+    participant SIM as scripts 00a-00c
     participant ETL as scripts 01-04
     participant ML as script 05
     participant EV as scripts 06-07
     participant FG as script 08
     participant R as reports/
 
-    D->>ETL: Insumos parquet/csv
+    SIM->>ETL: Silver (route_label, route_events, cell_exposure) + KPI summary
     ETL->>ETL: Limpieza, unificación y ventanas
     ETL->>ML: Tabla ML final
     ML->>ML: Entrenamiento CatBoost + calibración isotónica
@@ -152,7 +157,11 @@ InTAS_PRODUCCION_READY/
 │   └── omnet/
 ├── scripts/
 │   ├── run_full_reproduction.py
+│   ├── 00a_run_sumo_batch.py
+│   ├── 00b_extract_bronze_batch.py
+│   ├── 00c_build_silver_theory.py
 │   ├── 01_extract_omnet_kpis.py
+│   ├── 01b_prepare_unify_inputs.py
 │   ├── 02_unify_metrics.py
 │   ├── 03_build_gold_windows.py
 │   ├── 04_build_ml_table.py
@@ -243,7 +252,7 @@ ls -la reports/final/thesis_figures
 
 ## Ejecución con Docker paso a paso
 
-Esta modalidad permite ejecutar el flujo sin instalar librerías Python directamente en el host.
+Esta modalidad permite ejecutar el flujo de datos+ML dentro del contenedor sin instalar librerías Python directamente en el host.
 
 ### 1) Construir imagen
 
@@ -253,11 +262,11 @@ docker build -t intas-tesis .
 
 Qué logra este paso:
 
-- Construye entorno Ubuntu con dependencias de Python y utilidades requeridas.
+- Construye entorno Ubuntu con dependencias de Python + SUMO + utilidades requeridas.
 - Copia el repositorio al contenedor.
 - Define `scripts/run_full_reproduction.py` como comando de arranque.
 
-### 2) Ejecutar pipeline en contenedor
+### 2) Ejecutar pipeline base (ML + comparación analítica) en contenedor
 
 ```bash
 docker run --name intas-container intas-tesis
@@ -265,8 +274,25 @@ docker run --name intas-container intas-tesis
 
 Qué logra este paso:
 
-- Lanza ejecución del pipeline completo dentro de `/app`.
-- Genera reportes y figuras dentro del filesystem del contenedor.
+- Lanza el pipeline por defecto dentro de `/app`.
+- Genera artefactos de ML (`rho_hat` raw/calibrada), comparación contra referencia analítica (`rho`) y figuras.
+
+### 2.1) Ejecutar en contenedor con regeneración SUMO
+
+```bash
+docker run --name intas-container-sumo -e INTAS_RUN_SUMO=1 intas-tesis
+```
+
+### 2.2) Ejecutar en contenedor con SUMO + OMNeT + ML
+
+```bash
+docker run --name intas-container-full -e INTAS_RUN_SUMO=1 -e INTAS_RUN_OMNET=1 intas-tesis
+```
+
+Nota:
+
+- `INTAS_RUN_OMNET=1` requiere stack OMNeT/INET/Simu5G/Artery compilado y accesible en el contenedor.
+- El Dockerfile actual no compila automáticamente ese stack.
 
 ### 3) Copiar resultados al host
 
@@ -292,7 +318,7 @@ docker rm intas-container
 
 Responsabilidad:
 
-- Orquestar las 8 etapas.
+- Orquestar las 12 etapas.
 - Ejecutar en modo incremental por defecto.
 - Permitir reconstrucción total con `INTAS_FORCE_REBUILD=1`.
 
@@ -313,6 +339,57 @@ Resultado típico:
 - `reports/final/objetivo2/kpis_omnet_raw.csv`
 - `reports/final/objetivo2/kpis_omnet_by_cell.csv`
 - `reports/final/objetivo2/kpis_omnet_inventory_report.txt`
+
+### `scripts/00a_run_sumo_batch.py`
+
+Responsabilidad:
+
+- Ejecutar corridas SUMO para HC1/HC2/HC3, VFH 5/10, políticas nearest/ceiling y réplicas.
+- Persistir XML crudos por corrida en `sim/runs/<run_id>/`.
+
+Salidas:
+
+- `reports/final/sumo_batch_summary.json`
+
+### `scripts/00b_extract_bronze_batch.py`
+
+Responsabilidad:
+
+- Convertir XML crudos de `sim/runs/` a `parquet` bronze por corrida.
+
+Salidas:
+
+- `data/bronze/fcd/*.parquet`
+- `data/bronze/tripinfo/*.parquet`
+- `data/bronze/edgedata/*.parquet`
+- `reports/final/bronze_batch_summary.json`
+
+### `scripts/00c_build_silver_theory.py`
+
+Responsabilidad:
+
+- Construir `fcd_cells` y `cell_exposure`.
+- Reconstruir `route_label` y `route_events` desde rutas candidatas (`routes_*.rou.xml`) y trayectorias FCD.
+- Generar referencia analítica `rho` por `(period, vehID)`.
+
+Salidas:
+
+- `data/silver/cell_exposure.parquet`
+- `data/silver/route_label.parquet`
+- `data/silver/route_events.parquet`
+- `data/theory/analytic_rho_reference.parquet`
+
+### `scripts/01b_prepare_unify_inputs.py`
+
+Responsabilidad:
+
+- Transformar KPIs extraídos de OMNeT (`kpis_omnet_raw.csv`) al formato largo esperado por la unificación (`data/kpi/summary_kpis_avg.csv`).
+- Construir `data/mobility_metrics.parquet` desde `data/silver/cell_exposure.parquet` + `data/silver/route_label.parquet`.
+
+Salidas:
+
+- `data/kpi/summary_kpis_avg.csv`
+- `data/mobility_metrics.parquet`
 
 ### `scripts/02_unify_metrics.py`
 
@@ -402,7 +479,11 @@ Salida:
 
 | Etapa | Entrada principal | Salida principal | Objetivo operativo |
 |---|---|---|---|
+| 00A | escenarios SUMO + rutas | XML crudos en `sim/runs/` | simular movilidad desde cero |
+| 00B | XML crudos SUMO | bronze parquet | normalizar insumos de simulación |
+| 00C | bronze + rutas + celdas | silver + referencia analítica | preparar variables supervisadas base |
 | 01 | `.sca` OMNeT (si existen) | KPIs raw/by-cell | extraer señal de red |
+| 01B | KPI raw + exposure/labels SUMO | `data/kpi/summary_kpis_avg.csv` + `data/mobility_metrics.parquet` | preparar insumos de unificación |
 | 02 | movilidad + KPI summary | `data/unified_metrics.parquet` | consolidar vista movilidad/red |
 | 03 | route labels/events + FCD + exposure | `data/dataset_windows.parquet` | construir dataset Gold |
 | 04 | dataset Gold | `data/ml_table.parquet` | dejar tabla entrenable |
@@ -565,6 +646,24 @@ Para pasar de estado actual a estado full end-to-end desde simulación:
 python scripts/run_full_reproduction.py
 ```
 
+### Ejecutar desde cero (SUMO + construcción de datasets)
+
+```bash
+INTAS_RUN_SUMO=1 python scripts/run_full_reproduction.py
+```
+
+### Ejecutar pipeline incluyendo corridas OMNeT++
+
+```bash
+INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
+```
+
+### Ejecutar full CPSS (SUMO + OMNeT + ML)
+
+```bash
+INTAS_RUN_SUMO=1 INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
+```
+
 ### Forzar reconstrucción de todas las etapas
 
 ```bash
@@ -598,16 +697,40 @@ docker run --name intas-container intas-tesis
 docker cp intas-container:/app/reports/final ./resultados_tesis
 ```
 
+Docker con regeneración SUMO:
+
+```bash
+docker run --name intas-container-sumo -e INTAS_RUN_SUMO=1 intas-tesis
+```
+
+Docker full CPSS (si existe stack OMNeT compilado dentro del contenedor):
+
+```bash
+docker run --name intas-container-full -e INTAS_RUN_SUMO=1 -e INTAS_RUN_OMNET=1 intas-tesis
+```
+
 ---
 
 ## FAQ técnica
 
 ### ¿El pipeline corre completo con un solo comando?
 
-Sí, con:
+Sí, el flujo base de datos+ML+comparación analítica+figuras corre con:
 
 ```bash
 python scripts/run_full_reproduction.py
+```
+
+Para regenerar desde simulación SUMO:
+
+```bash
+INTAS_RUN_SUMO=1 python scripts/run_full_reproduction.py
+```
+
+Para full CPSS (SUMO + OMNeT + ML):
+
+```bash
+INTAS_RUN_SUMO=1 INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
 ```
 
 ### ¿Siempre recalcula todo?
@@ -636,11 +759,11 @@ INTAS_FORCE_REBUILD=1 python scripts/run_full_reproduction.py
 
 ### ¿Docker elimina la necesidad de Python local?
 
-Sí para la ejecución del pipeline dentro del contenedor.
+Sí para la ejecución del pipeline dentro del contenedor, incluyendo ML y comparación analítica.
 
 ### ¿Este paquete ya compila y ejecuta OMNeT completo automáticamente?
 
-No todavía como flujo full integrado; ese es el siguiente escalón de integración.
+No. El flujo OMNeT se puede orquestar (`INTAS_RUN_OMNET=1`), pero la compilación automática completa del stack OMNeT/INET/Simu5G/Artery no está integrada en el Dockerfile actual.
 
 ---
 

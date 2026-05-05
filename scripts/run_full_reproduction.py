@@ -25,19 +25,66 @@ def main():
     repo_root = Path(__file__).resolve().parents[1]
     os.chdir(repo_root)
     force_rebuild = os.environ.get("INTAS_FORCE_REBUILD", "0") == "1"
+    run_sumo = os.environ.get("INTAS_RUN_SUMO", "0") == "1"
+    run_omnet = os.environ.get("INTAS_RUN_OMNET", "0") == "1"
+    omnet_rep_from = os.environ.get("INTAS_OMNET_REP_FROM", "0")
+    omnet_rep_to = os.environ.get("INTAS_OMNET_REP_TO", "14")
 
     print("#"*70)
     print(" REPRODUCCIÓN TOTAL: SISTEMA INTAS + ML (Versión Tesis 2026)")
     print("#"*70)
     if not force_rebuild:
         print(" Modo incremental: se omiten pasos con salidas existentes.")
-        print("#"*70)
+    if run_sumo:
+        print(" Modo SUMO activo: se generan corridas y datos bronze/silver/theory.")
+    if run_omnet:
+        print(f" Modo OMNeT activo: repeticiones {omnet_rep_from}..{omnet_rep_to}.")
+    print("#"*70)
 
     steps = [
+        (
+            "00A Corridas SUMO batch (raw XML)",
+            (
+                "python scripts/00a_run_sumo_batch.py "
+                f"--rep-from {omnet_rep_from} --rep-to {omnet_rep_to}"
+            ),
+            ["reports/final/sumo_batch_summary.json"],
+        ),
+        (
+            "00B Extracción Bronze desde corridas SUMO",
+            "python scripts/00b_extract_bronze_batch.py",
+            ["reports/final/bronze_batch_summary.json"],
+        ),
+        (
+            "00C Construcción Silver + Referencia Analítica",
+            "python scripts/00c_build_silver_theory.py",
+            [
+                "data/silver/cell_exposure.parquet",
+                "data/silver/route_label.parquet",
+                "data/silver/route_events.parquet",
+                "data/theory/analytic_rho_reference.parquet",
+            ],
+        ),
+        (
+            "00 Corridas OMNeT++ baseline/learned (Objetivo 2)",
+            (
+                "python scripts/00_run_omnet_obj2_batch.py "
+                f"--rep-from {omnet_rep_from} --rep-to {omnet_rep_to}"
+            ),
+            ["reports/final/omnet_batch_summary.json"],
+        ),
         (
             "01 Extracción de KPIs OMNeT++ (PRBs/SINR)",
             "python scripts/01_extract_omnet_kpis.py",
             ["reports/final/objetivo2/kpis_omnet_inventory_report.txt"],
+        ),
+        (
+            "01B Preparación de insumos SUMO+OMNeT para unificación",
+            "python scripts/01b_prepare_unify_inputs.py",
+            [
+                "data/kpi/summary_kpis_avg.csv",
+                "data/mobility_metrics.parquet",
+            ],
         ),
         (
             "02 Unificación de Métricas (180 Corridas)",
@@ -83,6 +130,12 @@ def main():
     ]
 
     for name, cmd, outputs in steps:
+        if (name.startswith("00A ") or name.startswith("00B ") or name.startswith("00C ")) and not run_sumo:
+            print(f"[SKIP] {name} (activar con INTAS_RUN_SUMO=1)")
+            continue
+        if name.startswith("00 ") and not run_omnet:
+            print(f"[SKIP] {name} (activar con INTAS_RUN_OMNET=1)")
+            continue
         if should_skip(outputs, force_rebuild):
             print(f"[SKIP] {name} (salidas existentes)")
             continue

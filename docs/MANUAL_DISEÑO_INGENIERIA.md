@@ -2,14 +2,18 @@
 
 ## Arquitectura de ejecución
 El sistema se organiza en un pipeline secuencial:
-1. Extracción OMNeT (si hay insumos crudos).
-2. Unificación de métricas.
-3. Construcción de ventanas (dataset Gold).
-4. Construcción de tabla ML.
-5. Entrenamiento CatBoost + calibración isotónica.
-6. Validación probabilística.
-7. Comparación analítica vs aprendida.
-8. Generación de figuras.
+1. Corridas SUMO batch (XML crudo).
+2. Extracción Bronze (XML -> parquet).
+3. Construcción Silver + referencia analítica.
+4. Extracción OMNeT (si hay insumos crudos).
+5. Preparación de insumos de unificación (KPI summary + mobility metrics).
+6. Unificación de métricas.
+7. Construcción de ventanas (dataset Gold).
+8. Construcción de tabla ML.
+9. Entrenamiento CatBoost + calibración isotónica.
+10. Validación probabilística.
+11. Comparación analítica vs aprendida.
+12. Generación de figuras.
 
 ## Contrato de rutas del paquete
 - Datos de entrada y artefactos intermedios: `data/`
@@ -22,6 +26,21 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 python scripts/run_full_reproduction.py
+```
+
+Para incluir corridas OMNeT++ desde el mismo flujo:
+```bash
+INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
+```
+
+Para generar datasets de movilidad desde SUMO:
+```bash
+INTAS_RUN_SUMO=1 python scripts/run_full_reproduction.py
+```
+
+Para flujo completo integrado:
+```bash
+INTAS_RUN_SUMO=1 INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
 ```
 
 ## Operación con Docker
