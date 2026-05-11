@@ -611,43 +611,90 @@ Salida:
 
 ## Cómo validar que corrió correctamente
 
-Checklist mínimo:
+Hay tres niveles de validación según los simuladores disponibles.
 
-1. Existe reporte de entrenamiento:
+---
 
-```bash
-test -f reports/ml/report_catboost_isotonic.json && echo OK
-```
+### Nivel 1 — Solo ML (sin SUMO ni OMNeT++, ~5 minutos)
 
-2. Existen probabilidades raw/calibradas:
+Este es el test mínimo. Funciona con los seed data incluidos en el repositorio. Cualquier evaluador puede ejecutarlo sin instalar simuladores.
 
 ```bash
-test -f data/artifacts/ml/final/rho_hat_windows_raw.parquet && echo OK
-test -f data/artifacts/ml/final/rho_hat_windows_calibrated.parquet && echo OK
+git clone git@github.com:josearpa123/InTAS_Gradient_Boosting.git
+cd InTAS_Gradient_Boosting
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+python scripts/run_full_reproduction.py
 ```
 
-3. Existen métricas comparativas:
+Los pasos 00A–04 se omiten automáticamente (modo incremental, seed data presente). Se ejecutan los pasos 05–08.
+
+**Verificación de artefactos:**
 
 ```bash
-test -f reports/final/rho_compare_recomputed_global.csv && echo OK
-test -f reports/final/probabilistic_validity_global.csv && echo OK
+test -f data/models/catboost_gbdt.cbm                              && echo "OK catboost"
+test -f data/models/xgboost_ref.json                               && echo "OK xgboost"
+test -f data/models/isotonic.joblib                                && echo "OK calibrador"
+test -f data/artifacts/ml/final/rho_hat_windows_calibrated.parquet && echo "OK rho_hat"
+test -f data/artifacts/ml/injection/injection_plan.json            && echo "OK injection"
+test -f reports/final/mmtqhu_validation_by_profile.csv             && echo "OK mmtqhu"
+test -f reports/final/probabilistic_validity_global.csv            && echo "OK brier/ece"
+test -f reports/final/rho_compare_recomputed_global.csv            && echo "OK comparacion"
+test -f reports/final/thesis_figures/figures_manifest.md           && echo "OK figuras"
 ```
 
-4. Existen figuras:
-
-```bash
-test -f reports/final/thesis_figures/figures_manifest.md && echo OK
-```
-
-5. Inspección rápida de métricas:
+**Verificación de valores numéricos (deben coincidir con la tesis):**
 
 ```bash
 python - <<'PY'
-import pandas as pd
-print(pd.read_csv("reports/final/rho_compare_recomputed_global.csv").head())
-print(pd.read_csv("reports/final/probabilistic_validity_global.csv").head())
+import json, pandas as pd
+
+r = json.load(open("reports/ml/report_catboost_isotonic.json"))
+print("=== Modelo ML ===")
+print(f"AUC CatBoost calibrado : {r['roc_auc_cal']:.4f}  (tesis: 0.9255)")
+print(f"AUC XGBoost contraste  : {r['roc_auc_xgb']:.4f}  (tesis: reportado en Fig. G1)")
+print(f"Brier score soft       : {r['brier_soft']:.6f}  (tesis: 0.000850)")
+
+pb = pd.read_csv("reports/final/probabilistic_validity_global.csv")
+print("\n=== Validez probabilística ===")
+print(pb[["variant","brier_soft","ece_soft"]].to_string(index=False))
+print("(tesis: ECE soft ≈ 0.0099)")
+
+mm = pd.read_csv("reports/final/mmtqhu_validation_by_profile.csv")
+print("\n=== Validación MMtQHU por perfil ===")
+print(mm[["profile","mae","rmse","bias","corr"]].to_string(index=False))
+print("(tesis: MAE propietario ≈ 0.1235, MAE empleado ≈ 0.4565)")
 PY
 ```
+
+---
+
+### Nivel 2 — Con SUMO (requiere SUMO instalado)
+
+Regenera los seed data desde cero y repite el nivel 1.
+
+```bash
+INTAS_RUN_SUMO=1 python scripts/run_full_reproduction.py
+```
+
+Los valores numéricos deben ser idénticos a los del nivel 1 (mismas semillas, mismo diseño experimental).
+
+---
+
+### Nivel 3 — Full CPSS (requiere SUMO + OMNeT++/INET/Simu5G compilados)
+
+```bash
+INTAS_RUN_SUMO=1 INTAS_RUN_OMNET=1 python scripts/run_full_reproduction.py
+```
+
+Adicionalmente verifica:
+
+```bash
+test -f reports/final/omnet_batch_summary.json    && echo "OK omnet baseline"
+test -f reports/final/omnet_injected_summary.json && echo "OK omnet inyectado"
+```
+
+Los KPIs de red (SINR, CDR, throughput) deben coincidir con los valores reportados en la tesis (SINR +1.49 dB con doble conexión, CDR = 0%).
 
 ---
 
