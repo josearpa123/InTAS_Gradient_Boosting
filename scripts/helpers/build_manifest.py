@@ -16,8 +16,8 @@ EXPECTED = [
     "manifest.json",
 ]
 
-def sha1_file(path, block=1024*1024):
-    h = hashlib.sha1()
+def sha256_file(path, block=1024*1024):
+    h = hashlib.sha256()
     with open(path, "rb") as f:
         while True:
             b = f.read(block)
@@ -49,13 +49,13 @@ def main():
             for fn in EXPECTED:
                 p = os.path.join(d, fn)
                 if os.path.exists(p):
-                    # sha1 solo para manifest.json (barato) y vehroute.xml (moderado)
-                    # (fcd/tripinfo/etc pueden ser muy grandes; se deja solo size)
+                    # sha256 para manifest.json y vehroute.xml (Anexo C tesis)
+                    # fcd/tripinfo/etc pueden ser muy grandes; se deja solo size
                     do_hash = fn in ("manifest.json", "vehroute.xml")
                     files[fn] = {
                         "path": os.path.abspath(p),
                         "size_bytes": os.path.getsize(p),
-                        "sha1": sha1_file(p) if do_hash else None,
+                        "sha256": sha256_file(p) if do_hash else None,
                     }
                 else:
                     missing.append(fn)

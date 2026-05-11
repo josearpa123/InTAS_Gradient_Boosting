@@ -14,6 +14,7 @@
     "stops_count"
   ],
   "features_net": [],
+  "features_net_note": "Vacío en este artefacto de referencia (pipeline SUMO-only). Las features de red (network_*, prb_usage_*) se incorporan automáticamente cuando el pipeline OMNeT++ está disponible (INTAS_RUN_OMNET=1). El script 05_train_ml_model.py las detecta y usa si existen en ml_table.parquet.",
   "features_cat": [
     "cell_id",
     "period",
@@ -26,5 +27,9 @@
   "roc_auc_cal": 0.925520353582669,
   "ap_cal": 0.9582193010860134,
   "brier_cal": 0.09057253423984762,
-  "ece_cal": 1.622197570022495e-17
+  "ece_cal": 1.622197570022495e-17,
+  "xgboost_reference": {
+    "model": "xgboost + (no calibration)",
+    "note": "Contraste robusto. Ver reports/ml/report_catboost_isotonic.json para valores actualizados tras re-entrenamiento."
+  }
 }

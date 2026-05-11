@@ -51,11 +51,34 @@ data/**/*.cbm
 !data/**/README.md
 
 # -----------------------------
+# Seed data: pre-computed inputs for ligero reproducibility.
+# These small files (~10 MB total) allow the evaluator to run steps 05-08
+# (ML training + calibration + figures) without SUMO or OMNeT++.
+# Steps 00A-04 are auto-skipped when these files are present.
+# -----------------------------
+!data/silver/cell_exposure.parquet
+!data/silver/route_events.parquet
+!data/silver/route_label.parquet
+!data/theory/analytic_rho_reference.parquet
+!data/unified_metrics.parquet
+!data/dataset_windows.parquet
+!data/ml_table.parquet
+!data/mobility_metrics.parquet
+!data/kpi/summary_kpis_avg.csv
+
+# -----------------------------
 # Generated reports/figures
 # -----------------------------
 reports/**
 !reports/**/.gitkeep
 !reports/**/README.md
+
+# Seed report sentinels: OMNeT++ KPI outputs that allow step 01 to be
+# skipped and provide KPI inputs to step 01B in ligero mode.
+!reports/final/objetivo2/kpis_omnet_raw.csv
+!reports/final/objetivo2/kpis_omnet_by_cell.csv
+!reports/final/objetivo2/kpis_omnet_inventory_report.txt
+!reports/final/omnet_batch_summary.json
 
 # -----------------------------
 # Simulation outputs (heavy)

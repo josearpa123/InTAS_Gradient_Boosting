@@ -12,6 +12,8 @@ from joblib import dump
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
+from sklearn.preprocessing import LabelEncoder
+import xgboost as xgb
 
 
 def ece_score(y_true, p, n_bins=10):
@@ -43,7 +45,7 @@ def build_feature_set(df, include_network=True):
     return num_feats, net_feats, cat_feats
 
 
-def fit_model(X_tr, y_tr, X_te, y_te, cat_feats, args):
+def fit_catboost(X_tr, y_tr, X_te, y_te, cat_feats, args):
     model = CatBoostClassifier(
         loss_function="Logloss",
         eval_metric="AUC",
@@ -64,6 +66,49 @@ def fit_model(X_tr, y_tr, X_te, y_te, cat_feats, args):
         use_best_model=True,
     )
     return model
+
+
+def encode_categoricals_for_xgb(X, cat_feats, encoders=None):
+    """Label-encode categorical columns for XGBoost (returns encoded copy + fitted encoders)."""
+    X_enc = X.copy()
+    fit_encoders = encoders is None
+    if fit_encoders:
+        encoders = {}
+    for c in cat_feats:
+        if fit_encoders:
+            le = LabelEncoder()
+            X_enc[c] = le.fit_transform(X_enc[c].astype(str))
+            encoders[c] = le
+        else:
+            le = encoders[c]
+            known = set(le.classes_)
+            X_enc[c] = X_enc[c].astype(str).apply(lambda v: v if v in known else le.classes_[0])
+            X_enc[c] = le.transform(X_enc[c])
+    return X_enc, encoders
+
+
+def fit_xgboost(X_tr, y_tr, X_te, y_te, cat_feats, args):
+    X_tr_enc, encoders = encode_categoricals_for_xgb(X_tr, cat_feats)
+    X_te_enc, _ = encode_categoricals_for_xgb(X_te, cat_feats, encoders=encoders)
+
+    model = xgb.XGBClassifier(
+        objective="binary:logistic",
+        eval_metric="auc",
+        random_state=args.seed,
+        n_estimators=args.iterations,
+        max_depth=args.depth,
+        learning_rate=args.lr,
+        reg_lambda=args.l2,
+        early_stopping_rounds=args.early_stop,
+        verbosity=1,
+    )
+    model.fit(
+        X_tr_enc,
+        y_tr,
+        eval_set=[(X_te_enc, y_te)],
+        verbose=200,
+    )
+    return model, encoders
 
 
 def main():
@@ -111,20 +156,31 @@ def main():
     X_tr, y_tr = X.iloc[tr_idx].copy(), y[tr_idx]
     X_te, y_te = X.iloc[te_idx].copy(), y[te_idx]
 
-    model = fit_model(X_tr, y_tr, X_te, y_te, cat_feats, args)
-    p_raw_test = model.predict_proba(X_te)[:, 1].astype(float)
+    # ── CatBoost (modelo principal) ──────────────────────────────────────────
+    catboost_model = fit_catboost(X_tr, y_tr, X_te, y_te, cat_feats, args)
+    p_raw_test = catboost_model.predict_proba(X_te)[:, 1].astype(float)
 
     iso = IsotonicRegression(out_of_bounds="clip")
     iso.fit(p_raw_test, y_te)
     p_cal_test = iso.predict(p_raw_test)
 
-    fi = pd.DataFrame({"feature": feats, "importance": model.get_feature_importance()})
+    # ── XGBoost (contraste robusto / referencia comparativa) ─────────────────
+    xgb_model, xgb_encoders = fit_xgboost(X_tr, y_tr, X_te, y_te, cat_feats, args)
+    X_te_enc, _ = encode_categoricals_for_xgb(X_te, cat_feats, encoders=xgb_encoders)
+    p_xgb_test = xgb_model.predict_proba(X_te_enc)[:, 1].astype(float)
+
+    xgb_auc = float(roc_auc_score(y_te, p_xgb_test))
+    xgb_brier = float(brier_score_loss(y_te, p_xgb_test))
+    xgb_ece = ece_score(y_te, p_xgb_test, n_bins=10)
+
+    # ── Feature importance CatBoost ───────────────────────────────────────────
+    fi = pd.DataFrame({"feature": feats, "importance": catboost_model.get_feature_importance()})
     fi = fi.sort_values("importance", ascending=False)
     fi_path = os.path.join(args.report_dir, "feature_importance.csv")
     fi.to_csv(fi_path, index=False)
 
-    # Predicciones para todo el dataset (salida operativa del pipeline)
-    p_raw_all = model.predict_proba(X)[:, 1].astype(float)
+    # ── Predicciones para todo el dataset (salida operativa del pipeline) ─────
+    p_raw_all = catboost_model.predict_proba(X)[:, 1].astype(float)
     p_cal_all = iso.predict(p_raw_all).astype(float)
 
     meta_cols = [c for c in ["run_id", "period", "vehID", "cell_id", "t_ref"] if c in df.columns]
@@ -136,7 +192,7 @@ def main():
     raw_out.to_parquet(args.raw_out, index=False)
     cal_out.to_parquet(args.cal_out, index=False)
 
-    # Ablation mínima real (sin red), para G7 sin valores hardcodeados
+    # ── Ablation mínima real (sin red) ────────────────────────────────────────
     roc_auc_no_network = None
     if net_feats:
         num_feats_nr, _, cat_feats_nr = build_feature_set(df, include_network=False)
@@ -146,15 +202,16 @@ def main():
             X_nr[c] = X_nr[c].astype(str)
         X_nr_tr = X_nr.iloc[tr_idx].copy()
         X_nr_te = X_nr.iloc[te_idx].copy()
-        model_nr = fit_model(X_nr_tr, y_tr, X_nr_te, y_te, cat_feats_nr, args)
+        model_nr = fit_catboost(X_nr_tr, y_tr, X_nr_te, y_te, cat_feats_nr, args)
         p_nr = model_nr.predict_proba(X_nr_te)[:, 1].astype(float)
         roc_auc_no_network = float(roc_auc_score(y_te, p_nr))
 
     ablation_rows = [
-        {"scenario": "Modelo Completo", "auc": float(roc_auc_score(y_te, p_cal_test))},
+        {"scenario": "CatBoost Completo", "auc": float(roc_auc_score(y_te, p_cal_test))},
+        {"scenario": "XGBoost (contraste)", "auc": xgb_auc},
     ]
     if roc_auc_no_network is not None:
-        ablation_rows.append({"scenario": "Sin Red", "auc": roc_auc_no_network})
+        ablation_rows.append({"scenario": "CatBoost Sin Red", "auc": roc_auc_no_network})
     ablation_path = os.path.join(args.report_dir, "ablation_auc.csv")
     pd.DataFrame(ablation_rows).to_csv(ablation_path, index=False)
 
@@ -177,26 +234,43 @@ def main():
         "brier_cal": float(brier_score_loss(y_te, p_cal_test)),
         "ece_cal": ece_score(y_te, p_cal_test, n_bins=10),
         "roc_auc_cal_no_network": roc_auc_no_network,
+        # roc_auc_xgb at top level — consumed by 08_generate_figures.py (G1 ROC curve)
+        "roc_auc_xgb": xgb_auc,
+        "xgboost_reference": {
+            "model": "xgboost",
+            "roc_auc": xgb_auc,
+            "brier": xgb_brier,
+            "ece": xgb_ece,
+        },
     }
 
     model_path = os.path.join(args.out_dir, "catboost_gbdt.cbm")
     iso_path = os.path.join(args.out_dir, "isotonic.joblib")
+    xgb_path = os.path.join(args.out_dir, "xgboost_ref.json")
     rep_path = os.path.join(args.report_dir, "report_catboost_isotonic.json")
 
-    model.save_model(model_path)
+    catboost_model.save_model(model_path)
     dump(iso, iso_path)
+    xgb_model.save_model(xgb_path)
+    dump(xgb_encoders, os.path.join(args.out_dir, "xgb_encoders.joblib"))
 
     with open(rep_path, "w", encoding="utf-8") as f:
         json.dump(out, f, indent=2, ensure_ascii=False)
 
-    print("[OK] saved model:", model_path)
-    print("[OK] saved iso  :", iso_path)
-    print("[OK] saved report:", rep_path)
+    print("[OK] saved catboost:", model_path)
+    print("[OK] saved xgboost :", xgb_path)
+    print("[OK] saved iso     :", iso_path)
+    print("[OK] saved report  :", rep_path)
     print("[OK] saved raw rho_hat:", args.raw_out)
     print("[OK] saved calibrated rho_hat:", args.cal_out)
     print("[OK] saved ablation:", ablation_path)
-    print("AUC raw:", out["roc_auc_raw"], "AUC cal:", out["roc_auc_cal"])
-    print("ECE raw:", out["ece_raw"], "ECE cal:", out["ece_cal"])
+    print()
+    print("=== CatBoost (principal) ===")
+    print("AUC raw:", out["roc_auc_raw"], " AUC cal:", out["roc_auc_cal"])
+    print("ECE raw:", out["ece_raw"],     " ECE cal:", out["ece_cal"])
+    print()
+    print("=== XGBoost (contraste robusto) ===")
+    print("AUC:", xgb_auc, " Brier:", xgb_brier, " ECE:", xgb_ece)
 
 
 if __name__ == "__main__":

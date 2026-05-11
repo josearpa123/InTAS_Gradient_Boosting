@@ -1,58 +1,58 @@
-# Phase 4 - Master pipeline configuration
+# Pipeline configuration — InTAS PRODUCCION READY ligero
+# All paths are resolved from repository root.
 
 paths:
-  # Paths are resolved from repository root (InTAS-master)
-  omnet_sca_dir: omnet/intas_simu5g
-  kpi_csv_dir: export/kpi_csv
-  kpi_summary_csv: export/summary_kpis_avg.csv
-  kpi_wide_csv: export/summary_kpis_wide.csv
+  omnet_sca_dir: data/omnet_results
+  omnet_injected_sca_dir: data/omnet_results_injected
+  kpi_csv_dir: data/kpi
+  kpi_summary_csv: data/kpi/summary_kpis_avg.csv
+  kpi_wide_csv: data/kpi/summary_kpis_wide.csv
 
-  mobility_input_dir: InTAS_Celdas_v3/datasets/silver/fcd_cells
-  mobility_output: InTAS_Celdas_v3/datasets/mobility_metrics.parquet
+  mobility_input_dir: data/silver/fcd_cells
+  mobility_output: data/mobility_metrics.parquet
 
-  unified_output: InTAS_Celdas_v3/datasets/unified_metrics.parquet
-  validation_report: InTAS_Celdas_v3/reports/metrics_validation.txt
+  unified_output: data/unified_metrics.parquet
+  validation_report: reports/final/metrics_validation.txt
 
-  gold_dataset: InTAS_Celdas_v3/datasets/gold/dataset_windows.parquet
-  model_cbm: InTAS_Celdas_v3/models/catboost_gbdt.cbm
-  calibrator_isotonic: InTAS_Celdas_v3/models/isotonic.joblib
+  gold_dataset: data/dataset_windows.parquet
+  ml_table: data/ml_table.parquet
+  model_cbm: data/models/catboost_gbdt.cbm
+  model_xgb: data/models/xgboost_ref.json
+  calibrator_isotonic: data/models/isotonic.joblib
+  xgb_encoders: data/models/xgb_encoders.joblib
 
-  rho_analytic_input: InTAS_Celdas_v3/datasets/silver/analytic_rho/_ALL_PERIODS.parquet
-  rho_raw_output: InTAS_Celdas_v3/artifacts/ml/final/rho_hat_windows_raw.parquet
-  rho_raw_sample_csv: InTAS_Celdas_v3/reports/final/rho_hat_raw_sample.csv
-  rho_raw_inventory: InTAS_Celdas_v3/reports/final/rho_hat_raw_inventory.json
+  rho_analytic_input: data/theory/analytic_rho_reference.parquet
+  rho_raw_output: data/artifacts/ml/final/rho_hat_windows_raw.parquet
+  rho_cal_output: data/artifacts/ml/final/rho_hat_windows_calibrated.parquet
 
-  rho_cal_output: InTAS_Celdas_v3/artifacts/ml/final/rho_hat_windows_calibrated.parquet
-  rho_cal_sample_csv: InTAS_Celdas_v3/reports/final/rho_hat_calibrated_sample.csv
-  rho_cal_inventory: InTAS_Celdas_v3/reports/final/rho_hat_calibrated_inventory.json
+  injection_plan: data/artifacts/ml/injection/injection_plan.json
+  injection_csv: data/artifacts/ml/injection/injection_plan.csv
 
-  rho_compare_report: InTAS_Celdas_v3/reports/final/rho_compare_recomputed_report.txt
-  rho_compare_global_csv: InTAS_Celdas_v3/reports/final/rho_compare_recomputed_global.csv
-  rho_compare_by_period_csv: InTAS_Celdas_v3/reports/final/rho_compare_recomputed_by_period.csv
-  rho_compare_agg_csv: InTAS_Celdas_v3/reports/final/rho_recomputed_agg_period_veh.csv
+  rho_compare_report: reports/final/rho_compare_recomputed_report.txt
+  rho_compare_global_csv: reports/final/rho_compare_recomputed_global.csv
+  rho_compare_by_period_csv: reports/final/rho_compare_recomputed_by_period.csv
+  rho_compare_agg_csv: reports/final/rho_recomputed_agg_period_veh.csv
 
-  prob_validity_global_csv: InTAS_Celdas_v3/reports/final/probabilistic_validity_global.csv
-  prob_validity_bins_csv: InTAS_Celdas_v3/reports/final/probabilistic_validity_bins.csv
-  prob_validity_report: InTAS_Celdas_v3/reports/final/probabilistic_validity_report.txt
-  prob_validity_curve_png: InTAS_Celdas_v3/reports/final/probabilistic_calibration_curve.png
+  prob_validity_global_csv: reports/final/probabilistic_validity_global.csv
+  prob_validity_bins_csv: reports/final/probabilistic_validity_bins.csv
+  prob_validity_report: reports/final/probabilistic_validity_report.txt
+  prob_validity_curve_png: reports/final/probabilistic_calibration_curve.png
 
-  cpss_actions_summary_json: InTAS_Celdas_v3/reports/final/cpss_actions/cpss_actions_summary.json
-  cpss_actions_report_md: InTAS_Celdas_v3/reports/final/cpss_actions/cpss_actions_report.md
-  cpss_model_family_csv: InTAS_Celdas_v3/reports/final/cpss_actions/model_family_comparison.csv
-  cpss_ablation_csv: InTAS_Celdas_v3/reports/final/cpss_actions/ablation_real_with_bootstrap.csv
-  cpss_temporal_csv: InTAS_Celdas_v3/reports/final/cpss_actions/temporal_holdout_hc3.csv
+  mmtqhu_validation_csv: reports/final/mmtqhu_validation_by_profile.csv
+  mmtqhu_validation_report: reports/final/mmtqhu_validation_report.txt
 
-  phase3_notebooks:
-    - InTAS_Celdas_v3/reports/01_scenario_comparison.ipynb
-    - InTAS_Celdas_v3/reports/02_policy_impact.ipynb
-    - InTAS_Celdas_v3/reports/03_5g_coverage_analysis.ipynb
-    - InTAS_Celdas_v3/reports/04_ml_model_insights.ipynb
+  ml_report: reports/ml/report_catboost_isotonic.json
+  feature_importance_csv: reports/ml/feature_importance.csv
+  ablation_csv: reports/ml/ablation_auc.csv
+
+  thesis_figures_dir: reports/final/thesis_figures
+  figures_manifest: reports/final/thesis_figures/figures_manifest.md
+
+  sumo_traces_omnet_dir: data/sumo_traces_omnet
 
 pipeline:
   skip_completed: true
   fail_fast: true
-  run_phase3_notebooks: false
-  notebook_timeout_sec: 1200
 
 quality:
   nan_threshold: 0.01

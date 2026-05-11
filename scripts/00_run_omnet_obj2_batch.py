@@ -29,6 +29,27 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--summary", default="reports/final/omnet_batch_summary.json")
     p.add_argument("--baseline-conf", default="SingleConnection-CBR-DL")
     p.add_argument("--learned-conf", default="DoubleConnection-CBR-DL")
+    p.add_argument(
+        "--sumo-trace-dir",
+        default="data/sumo_traces_omnet",
+        help=(
+            "Directorio con trazas SUMO→OMNeT++ generadas por 00d. "
+            "Si existe y contiene trazas, las corridas usan TraceFileMobility "
+            "(SingleConnection-SUMO-DL / DoubleConnection-SUMO-DL) en lugar de "
+            "LinearMobility. Si no existe, se usan los configs CBR estándar."
+        ),
+    )
+    p.add_argument(
+        "--injection-plan",
+        default="",
+        help=(
+            "Ruta al JSON generado por 05b_inject_rho_omnet.py. "
+            "Si se provee, la configuración 'learned' de cada corrida se "
+            "selecciona según el plan (ρ̂ ≥ umbral → DoubleConnection, "
+            "ρ̂ < umbral → SingleConnection). Sin este argumento se usa "
+            "--learned-conf para todas las corridas."
+        ),
+    )
     p.add_argument("--rep-from", type=int, default=0)
     p.add_argument("--rep-to", type=int, default=14)
     p.add_argument("--opp-run", default="opp_run")
@@ -42,6 +63,48 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--inet-src", default=os.environ.get("INET_SRC", ""))
     p.add_argument("--simu5g-src", default=os.environ.get("SIMU5G_SRC", ""))
     return p.parse_args()
+
+
+def detect_sumo_trace(trace_dir: str, run_id: str) -> str | None:
+    """Return path to first vehicle trace file for this run_id, or None."""
+    if not trace_dir:
+        return None
+    run_path = Path(trace_dir) / run_id
+    if not run_path.exists():
+        return None
+    traces = sorted(run_path.glob("*.trace"))
+    if traces:
+        return str(traces[0].resolve())
+    return None
+
+
+def sumo_mobility_overrides(trace_file: str) -> list[str]:
+    """Return -G args that switch the UE to TraceFileMobility for this run."""
+    return [
+        "-G", f'*.ue[*].mobility.typename="TraceFileMobility"',
+        "-G", f'*.ue[*].mobility.traceFile="{trace_file}"',
+        "-G", '*.ue[*].mobility.updateInterval=0.1s',
+    ]
+
+
+def load_injection_plan(path: str) -> dict[str, str]:
+    """Load run_id → conf_name mapping from injection plan JSON."""
+    if not path:
+        return {}
+    plan_path = Path(path)
+    if not plan_path.exists():
+        print(f"[WARN] Injection plan not found: {path} — using default --learned-conf")
+        return {}
+    with plan_path.open(encoding="utf-8") as f:
+        payload = json.load(f)
+    plan: dict[str, str] = payload.get("plan", {})
+    print(
+        f"[INFO] Injection plan loaded: {len(plan)} runs, "
+        f"threshold={payload.get('threshold', '?')}, "
+        f"learned={payload.get('n_learned', '?')}, "
+        f"baseline={payload.get('n_baseline', '?')}"
+    )
+    return plan
 
 
 def guess_paths(args: argparse.Namespace) -> tuple[list[str], list[str]]:
@@ -129,6 +192,7 @@ def run_one(
     run_id: str,
     libs: list[str],
     ned_paths: list[str],
+    extra_args: list[str] | None = None,
 ) -> tuple[bool, str]:
     out_dir = out_root / conf_name / run_id
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -155,6 +219,8 @@ def run_one(
     ]
     for lib in libs:
         cmd.extend(["-l", lib])
+    if extra_args:
+        cmd.extend(extra_args)
 
     log_path = out_dir / "opp_run.log"
     start_ts = time.time()
@@ -203,6 +269,30 @@ def main() -> int:
             "Set SIMU5G_LIB/INET_LIB or install compiled libs."
         )
 
+    # Detección de trazas SUMO: si existen, se usa TraceFileMobility (acoplamiento
+    # secuencial SUMO→OMNeT++) en lugar de LinearMobility.
+    sumo_trace_dir = args.sumo_trace_dir
+    sumo_traces_available = Path(sumo_trace_dir).exists() if sumo_trace_dir else False
+    if sumo_traces_available:
+        print(f"[INFO] Trazas SUMO detectadas en {sumo_trace_dir}")
+        print("[INFO] Modo co-simulación secuencial: usando TraceFileMobility")
+        # Configs que usan TraceFileMobility en lugar de LinearMobility
+        effective_baseline = args.baseline_conf.replace("-CBR-", "-SUMO-")
+        effective_learned_default = args.learned_conf.replace("-CBR-", "-SUMO-")
+    else:
+        print(f"[INFO] Sin trazas SUMO — usando LinearMobility (modo fallback)")
+        effective_baseline = args.baseline_conf
+        effective_learned_default = args.learned_conf
+
+    # Plan de inyección de ρ̂: si se provee, selecciona la configuración
+    # 'learned' de cada corrida según el estimador ML (05b_inject_rho_omnet.py).
+    injection_plan = load_injection_plan(args.injection_plan)
+    injection_mode = bool(injection_plan)
+    if injection_mode:
+        print("[INFO] Modo inyección ρ̂ activo: configuración 'learned' según plan ML")
+    else:
+        print(f"[INFO] Baseline={effective_baseline}, Learned={effective_learned_default}")
+
     baseline_dir = out_root / "baseline"
     learned_dir = out_root / "learned"
     baseline_dir.mkdir(parents=True, exist_ok=True)
@@ -219,27 +309,46 @@ def main() -> int:
                     total += 1
                     run_id = f"{period}_{vfh}pct__{policy}__rep{rep:02d}"
                     print(f"[OMNET] {total} run_id={run_id}")
+
+                    # Trazas SUMO para esta corrida (integración secuencial)
+                    trace_file = detect_sumo_trace(sumo_trace_dir, run_id) if sumo_traces_available else None
+                    mobility_overrides = sumo_mobility_overrides(trace_file) if trace_file else []
+                    if trace_file:
+                        print(f"  [TRACE] {Path(trace_file).name}")
+                    baseline_conf = effective_baseline
+                    if injection_mode:
+                        base_learned = injection_plan.get(run_id, effective_learned_default)
+                        # Si el plan devolvió un conf CBR y hay trazas, migrar a SUMO equivalente
+                        if sumo_traces_available and trace_file and "-CBR-" in base_learned:
+                            learned_conf = base_learned.replace("-CBR-", "-SUMO-")
+                        else:
+                            learned_conf = base_learned
+                    else:
+                        learned_conf = effective_learned_default
+
                     b_ok, b_reason = run_one(
                         args,
                         ini_path=ini_path,
                         scenario_root=scenario_root,
                         out_root=baseline_dir,
-                        conf_name=args.baseline_conf,
+                        conf_name=baseline_conf,
                         rep=rep,
                         run_id=run_id,
                         libs=libs,
                         ned_paths=ned_paths,
+                        extra_args=mobility_overrides,
                     )
                     l_ok, l_reason = run_one(
                         args,
                         ini_path=ini_path,
                         scenario_root=scenario_root,
                         out_root=learned_dir,
-                        conf_name=args.learned_conf,
+                        conf_name=learned_conf,
                         rep=rep,
                         run_id=run_id,
                         libs=libs,
                         ned_paths=ned_paths,
+                        extra_args=mobility_overrides,
                     )
                     pair_ok = b_ok and l_ok
                     if pair_ok:
@@ -251,6 +360,11 @@ def main() -> int:
                             "vfh": int(vfh),
                             "policy": policy,
                             "rep": rep,
+                            "baseline_conf": baseline_conf,
+                            "learned_conf": learned_conf,
+                            "injection_mode": injection_mode,
+                            "sumo_trace_used": trace_file is not None,
+                            "sumo_trace_file": trace_file or "",
                             "baseline_ok": b_ok,
                             "baseline_reason": b_reason,
                             "learned_ok": l_ok,
@@ -263,8 +377,11 @@ def main() -> int:
         "ini": str(ini_path),
         "scenario_root": str(scenario_root),
         "results_root": str(out_root),
-        "baseline_conf": args.baseline_conf,
-        "learned_conf": args.learned_conf,
+        "baseline_conf": effective_baseline,
+        "learned_conf": effective_learned_default,
+        "sumo_traces_active": sumo_traces_available,
+        "sumo_trace_dir": sumo_trace_dir if sumo_traces_available else None,
+        "injection_mode": injection_mode,
         "libraries": libs,
         "ned_path": ned_paths,
         "total_pairs": total,

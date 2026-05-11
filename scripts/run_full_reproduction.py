@@ -66,6 +66,11 @@ def main():
             ],
         ),
         (
+            "00D Exportar trazas SUMO→OMNeT++ (integración secuencial)",
+            "python scripts/00d_export_sumo_traces_for_omnet.py",
+            ["reports/final/sumo_traces_omnet_summary.json"],
+        ),
+        (
             "00 Corridas OMNeT++ baseline/learned (Objetivo 2)",
             (
                 "python scripts/00_run_omnet_obj2_batch.py "
@@ -102,15 +107,26 @@ def main():
             ["data/ml_table.parquet"],
         ),
         (
-            "05 Entrenamiento CatBoost + Calibración Isotonic",
+            "05 Entrenamiento CatBoost + XGBoost + Calibración Isotonic",
             "python scripts/05_train_ml_model.py",
             [
                 "data/models/catboost_gbdt.cbm",
                 "data/models/isotonic.joblib",
+                "data/models/xgboost_ref.json",
                 "data/artifacts/ml/final/rho_hat_windows_raw.parquet",
                 "data/artifacts/ml/final/rho_hat_windows_calibrated.parquet",
                 "reports/ml/report_catboost_isotonic.json",
             ],
+        ),
+        (
+            "05B Reinyección de rho_hat en OMNeT++ (plan de inyección)",
+            "python scripts/05b_inject_rho_omnet.py",
+            ["data/artifacts/ml/injection/injection_plan.json"],
+        ),
+        (
+            "05C Validación contra perfiles MMtQHU (propietario/empleado)",
+            "python scripts/05c_validate_mmtqhu_profiles.py",
+            ["reports/final/mmtqhu_validation_by_profile.csv"],
         ),
         (
             "06 Evaluación de Validez Probabilística (Brier/ECE)",
@@ -127,13 +143,24 @@ def main():
             "python scripts/08_generate_figures.py",
             ["reports/final/thesis_figures/figures_manifest.md"],
         ),
+        (
+            "09 OMNeT++ con reinyección de rho_hat (ceteris paribus ML)",
+            (
+                "python scripts/00_run_omnet_obj2_batch.py "
+                "--injection-plan data/artifacts/ml/injection/injection_plan.json "
+                "--results-root data/omnet_results_injected "
+                "--summary reports/final/omnet_injected_summary.json "
+                f"--rep-from {omnet_rep_from} --rep-to {omnet_rep_to}"
+            ),
+            ["reports/final/omnet_injected_summary.json"],
+        ),
     ]
 
     for name, cmd, outputs in steps:
-        if (name.startswith("00A ") or name.startswith("00B ") or name.startswith("00C ")) and not run_sumo:
+        if (name.startswith("00A ") or name.startswith("00B ") or name.startswith("00C ") or name.startswith("00D ")) and not run_sumo:
             print(f"[SKIP] {name} (activar con INTAS_RUN_SUMO=1)")
             continue
-        if name.startswith("00 ") and not run_omnet:
+        if (name.startswith("00 ") or name.startswith("09 ")) and not run_omnet:
             print(f"[SKIP] {name} (activar con INTAS_RUN_OMNET=1)")
             continue
         if should_skip(outputs, force_rebuild):

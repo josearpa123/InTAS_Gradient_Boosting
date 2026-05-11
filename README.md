@@ -58,13 +58,16 @@ Transformar artefactos de datos de movilidad/red en un resultado probabilístico
 
 Al ejecutar correctamente el pipeline se obtiene:
 
-1. Modelo CatBoost entrenado.
+1. Modelos CatBoost **y XGBoost** entrenados (contraste robusto).
 2. Calibrador isotónico persistido.
-3. Predicciones `rho_hat` en versión raw y calibrada.
-4. Métricas de validez probabilística (Brier/ECE soft).
-5. Métricas de comparación analítica vs aprendida (MAE/RMSE/correlación).
-6. Figuras finales en PNG/PDF/SVG.
-7. Manifiesto de figuras y reportes para trazabilidad.
+3. Predicciones `rho_hat` calibradas por vehículo, ventana y corrida.
+4. **Plan de inyección** `injection_plan.json`: asigna config OMNeT++ por run_id según ρ̂.
+5. **Trazas SUMO→OMNeT++**: archivos `.trace` para `TraceFileMobility` (acoplamiento secuencial).
+6. **Validación perfiles MMtQHU**: MAE/RMSE por grupo propietario/empleado.
+7. Métricas de validez probabilística (Brier/ECE soft).
+8. Métricas de comparación analítica vs aprendida (MAE/RMSE/correlación por período).
+9. 7 figuras finales en PNG/PDF/SVG (incluyendo ROC CatBoost vs XGBoost).
+10. Manifiestos SHA-256 y reportes para trazabilidad completa.
 
 ---
 
@@ -72,13 +75,17 @@ Al ejecutar correctamente el pipeline se obtiene:
 
 ```mermaid
 flowchart LR
-    A[scenarios/sumo + sim/runs] --> B[scripts/00a-00c: simulación + bronze/silver/theory]
-    B --> C[scripts/01-01B: extracción KPI OMNeT + preparación unify]
-    C --> D[scripts/02-04: unify + gold + tabla ML]
-    D --> E[scripts/05: entrenamiento + calibración]
-    E --> F[scripts/06-08: evaluación + comparación + figuras]
-    F --> G[reports/final]
-    E --> H[reports/ml]
+    A[scenarios/sumo] --> B[00a-00c: SUMO + bronze/silver/theory]
+    B --> B2[00d: trazas SUMO→OMNeT++]
+    B2 --> C[00: OMNeT++ con TraceFileMobility]
+    C --> D[01-01B: KPI OMNeT + preparación]
+    D --> E[02-04: unify + gold + tabla ML]
+    E --> F[05: CatBoost + XGBoost + calibración]
+    F --> F2[05B: plan inyección ρ̂]
+    F --> F3[05C: validación MMtQHU]
+    F2 --> C2[09: OMNeT++ con ρ̂ inyectado]
+    F --> G[06-08: evaluación + figuras]
+    G --> H[reports/final]
 ```
 
 La arquitectura está separada por responsabilidades:
@@ -95,13 +102,19 @@ La arquitectura está separada por responsabilidades:
 flowchart TD
     S0A[00a_run_sumo_batch.py] --> S0B[00b_extract_bronze_batch.py]
     S0B --> S0C[00c_build_silver_theory.py]
-    O0[00_run_omnet_obj2_batch.py] --> M1[01_extract_omnet_kpis.py]
+    S0B --> S0D[00d_export_sumo_traces_for_omnet.py]
+    S0D --> O0[00_run_omnet_obj2_batch.py]
+    S0C --> O0
+    O0 --> M1[01_extract_omnet_kpis.py]
     S0C --> M1
     M1 --> M1B[01b_prepare_unify_inputs.py]
     M1B --> M2[02_unify_metrics.py]
     M2 --> M3[03_build_gold_windows.py]
     M3 --> M4[04_build_ml_table.py]
     M4 --> M5[05_train_ml_model.py]
+    M5 --> M5B[05b_inject_rho_omnet.py]
+    M5 --> M5C[05c_validate_mmtqhu_profiles.py]
+    M5B --> O09[00_run_omnet_obj2_batch.py paso 09]
     M5 --> M6[06_evaluate_probabilistic.py]
     M5 --> M7[07_compare_analytic_vs_learned.py]
     M6 --> M8[08_generate_figures.py]
@@ -110,11 +123,15 @@ flowchart TD
 
 Interpretación funcional:
 
-- M1-M2: red y consolidación.
-- M3-M4: dataset supervisado.
-- M5: modelo + calibración.
-- M6-M7: calidad probabilística y ajuste vs referencia.
-- M8: visualización final.
+- **00a-00c**: simulación SUMO, extracción bronze/silver, referencia analítica.
+- **00d**: exporta trazas FCD → formato INET para acoplamiento secuencial SUMO↔OMNeT++.
+- **00**: OMNeT++ batch (usa trazas SUMO si existen, fallback LinearMobility).
+- **01-04**: KPI red, consolidación, dataset Gold, tabla ML.
+- **05**: CatBoost + XGBoost + calibración isotónica.
+- **05B**: plan de inyección ρ̂ → OMNeT++ (asigna config por run_id).
+- **05C**: validación contra perfiles MMtQHU (propietario/empleado).
+- **06-08**: calidad probabilística, comparación analítica, figuras.
+- **09**: OMNeT++ con reinyección real de ρ̂ (paso post-ML).
 
 ---
 
@@ -122,21 +139,33 @@ Interpretación funcional:
 
 ```mermaid
 sequenceDiagram
-    participant SIM as scripts 00a-00c
-    participant ETL as scripts 01-04
-    participant ML as script 05
-    participant EV as scripts 06-07
-    participant FG as script 08
+    participant SIM as 00a-00c SUMO
+    participant TRC as 00d trazas SUMO→OMNeT
+    participant OMN as 00 OMNeT++
+    participant ETL as 01-04 ETL
+    participant ML as 05 ML
+    participant INJ as 05B inyección ρ̂
+    participant MMT as 05C MMtQHU
+    participant EV as 06-07 evaluación
+    participant FG as 08 figuras
     participant R as reports/
 
-    SIM->>ETL: Silver (route_label, route_events, cell_exposure) + KPI summary
-    ETL->>ETL: Limpieza, unificación y ventanas
-    ETL->>ML: Tabla ML final
-    ML->>ML: Entrenamiento CatBoost + calibración isotónica
-    ML->>EV: rho_hat raw / rho_hat calibrada
-    EV->>R: Métricas globales y por período
-    EV->>FG: Insumos de comparación
-    FG->>R: Figuras PNG/PDF/SVG + manifest
+    SIM->>TRC: FCD parquet por run_id
+    TRC->>OMN: archivos .trace (TraceFileMobility)
+    SIM->>OMN: silver + config escenarios
+    OMN->>ETL: .sca/.vec KPIs de red
+    SIM->>ETL: silver (route_label, cell_exposure)
+    ETL->>ETL: unificación, Gold, tabla ML
+    ETL->>ML: ml_table.parquet
+    ML->>ML: CatBoost + XGBoost + isotonic
+    ML->>INJ: rho_hat_calibrated.parquet
+    ML->>MMT: rho_hat_calibrated.parquet
+    INJ->>OMN: injection_plan.json (paso 09)
+    ML->>EV: rho_hat raw / calibrada
+    EV->>R: Métricas Brier/ECE/MAE
+    MMT->>R: mmtqhu_validation_report.txt
+    EV->>FG: insumos comparación
+    FG->>R: G1-G7 PNG/PDF/SVG + manifest
 ```
 
 ---
@@ -146,42 +175,56 @@ sequenceDiagram
 Estructura funcional principal:
 
 ```text
-InTAS_PRODUCCION_READY/
+InTAS_PRODUCCION_READY_ligero/
 ├── README.md
 ├── README_DOCKER.md
 ├── Dockerfile
-├── requirements.txt
-├── config/
-│   └── ml/
+├── requirements.txt            # incluye xgboost==2.0.3
+├── config/ml/
+│   ├── experiment.yaml
+│   ├── pipeline.yaml           # rutas actualizadas
+│   └── best_model_report.json
 ├── scenarios/
-│   ├── sumo/
+│   ├── sumo/                   # 6 .sumocfg + red + rutas HC1-HC3
 │   └── omnet/
+│       ├── omnetpp.ini         # configs: CBR + SUMO + InTAS
+│       └── configs/
+│           ├── intas_positions_4cells.ini
+│           └── intas_positions_10cells.ini
 ├── scripts/
-│   ├── run_full_reproduction.py
-│   ├── 00_run_omnet_obj2_batch.py
+│   ├── run_full_reproduction.py      # orquestador (16 pasos)
+│   ├── 00_run_omnet_obj2_batch.py    # OMNeT++ batch + TraceFileMobility
 │   ├── 00a_run_sumo_batch.py
 │   ├── 00b_extract_bronze_batch.py
 │   ├── 00c_build_silver_theory.py
+│   ├── 00d_export_sumo_traces_for_omnet.py  ← nuevo
 │   ├── 01_extract_omnet_kpis.py
 │   ├── 01b_prepare_unify_inputs.py
 │   ├── 02_unify_metrics.py
 │   ├── 03_build_gold_windows.py
 │   ├── 04_build_ml_table.py
-│   ├── 05_train_ml_model.py
+│   ├── 05_train_ml_model.py          # CatBoost + XGBoost
+│   ├── 05b_inject_rho_omnet.py       ← nuevo
+│   ├── 05c_validate_mmtqhu_profiles.py  ← nuevo
 │   ├── 06_evaluate_probabilistic.py
 │   ├── 07_compare_analytic_vs_learned.py
 │   ├── 08_generate_figures.py
 │   └── helpers/
+│       ├── build_manifest.py         # SHA-256
+│       ├── extract_bronze.py
+│       └── fcd_assign_cells.py
 ├── data/
-│   ├── bronze/
+│   ├── bronze/fcd/             # parquets FCD por run_id
 │   ├── silver/
-│   ├── gold/
-│   ├── models/
+│   ├── models/                 # catboost + xgboost + isotonic
 │   ├── theory/
-│   └── artifacts/
+│   ├── artifacts/ml/
+│   │   ├── final/              # rho_hat raw + calibrated
+│   │   └── injection/          # injection_plan.json
+│   └── sumo_traces_omnet/      # trazas .trace por run_id/vehID
 └── reports/
-    ├── ml/
-    └── final/
+    ├── ml/                     # report + feature_importance + ablation
+    └── final/                  # métricas, figuras, mmtqhu, manifests
 ```
 
 ---
@@ -436,22 +479,75 @@ Salida:
 
 - `data/ml_table.parquet`
 
+### `scripts/00d_export_sumo_traces_for_omnet.py`
+
+Responsabilidad:
+
+- Leer parquets FCD de `data/bronze/fcd/` (generados por paso 00B).
+- Convertir posiciones vehiculares al formato INET `TraceFileMobility` (`t x y`).
+- Generar un archivo `.trace` por vehículo por corrida.
+- Producir `trace_index.json` de trazas disponibles.
+
+Rol en la arquitectura:
+
+- Implementa el **acoplamiento secuencial SUMO→OMNeT++** (integración offline).
+- Cuando las trazas existen, `00_run_omnet_obj2_batch.py` usa `TraceFileMobility` automáticamente.
+
+Salidas:
+
+- `data/sumo_traces_omnet/<run_id>/<vehID>.trace`
+- `data/sumo_traces_omnet/trace_index.json`
+- `reports/final/sumo_traces_omnet_summary.json`
+
 ### `scripts/05_train_ml_model.py`
 
 Responsabilidad:
 
-- Entrenar CatBoost.
-- Calibrar probabilidades con isotonic regression.
-- Persistir modelo, calibrador y predicciones raw/calibradas.
+- Entrenar **CatBoost** (modelo principal).
+- Entrenar **XGBoost** como contraste robusto y referencia comparativa.
+- Calibrar probabilidades CatBoost con isotonic regression.
+- Persistir modelos, calibrador y predicciones raw/calibradas.
 
 Salidas clave:
 
 - `data/models/catboost_gbdt.cbm`
+- `data/models/xgboost_ref.json`
 - `data/models/isotonic.joblib`
 - `data/artifacts/ml/final/rho_hat_windows_raw.parquet`
 - `data/artifacts/ml/final/rho_hat_windows_calibrated.parquet`
-- `reports/ml/report_catboost_isotonic.json`
+- `reports/ml/report_catboost_isotonic.json` (incluye `roc_auc_xgb`)
 - `reports/ml/ablation_auc.csv`
+
+### `scripts/05b_inject_rho_omnet.py`
+
+Responsabilidad:
+
+- Leer `rho_hat_windows_calibrated.parquet`.
+- Calcular `mean(ρ̂)` por run_id.
+- Asignar configuración OMNeT++ según umbral de decisión (default 0.5):
+  - `ρ̂ ≥ 0.5` → `DoubleConnection` (doble conectividad proactiva, handover anticipado).
+  - `ρ̂ < 0.5` → `SingleConnection` (baseline, sin handover proactivo).
+- Exportar plan de inyección JSON consumido por el paso 09 y `00_run_omnet_obj2_batch.py`.
+
+Salidas:
+
+- `data/artifacts/ml/injection/injection_plan.json`
+- `data/artifacts/ml/injection/injection_plan.csv`
+- `data/artifacts/ml/injection/injection_summary.txt`
+
+### `scripts/05c_validate_mmtqhu_profiles.py`
+
+Responsabilidad:
+
+- Comparar ρ̂ calibrada contra ρ analítica segmentando por perfil de comportamiento MMtQHU:
+  - **Propietario**: vehículos sin prefijo `VFH_` (movilidad propia/privada).
+  - **Empleado**: vehículos con prefijo `VFH_` (trayectos laborales/flotilla).
+- Calcular MAE, RMSE, bias y correlación de Pearson por grupo.
+
+Salidas:
+
+- `reports/final/mmtqhu_validation_by_profile.csv`
+- `reports/final/mmtqhu_validation_report.txt`
 
 ### `scripts/06_evaluate_probabilistic.py`
 
@@ -494,18 +590,22 @@ Salida:
 | Etapa | Entrada principal | Salida principal | Objetivo operativo |
 |---|---|---|---|
 | 00A | escenarios SUMO + rutas | XML crudos en `sim/runs/` | simular movilidad desde cero |
-| 00B | XML crudos SUMO | bronze parquet | normalizar insumos de simulación |
+| 00B | XML crudos SUMO | `data/bronze/fcd/*.parquet` | normalizar insumos de simulación |
 | 00C | bronze + rutas + celdas | silver + referencia analítica | preparar variables supervisadas base |
-| 00  | OMNeT configs + layouts | `.sca` y `.vec` en `data/omnet_results/` | simular red celular y calidad de canal |
-| 01 | `.sca` OMNeT (si existen) | KPIs raw/by-cell | extraer señal de red |
-| 01B | KPI raw + exposure/labels SUMO | `data/kpi/summary_kpis_avg.csv` + `data/mobility_metrics.parquet` | preparar insumos de unificación |
-| 02 | movilidad + KPI summary | `data/unified_metrics.parquet` | consolidar vista movilidad/red |
-| 03 | route labels/events + FCD + exposure | `data/dataset_windows.parquet` | construir dataset Gold |
-| 04 | dataset Gold | `data/ml_table.parquet` | dejar tabla entrenable |
-| 05 | tabla ML | modelos + `rho_hat` raw/cal | aprender y calibrar probabilidad |
-| 06 | referencia analítica + `rho_hat` | `probabilistic_validity_global.csv` | medir calidad probabilística |
-| 07 | referencia analítica + `rho_hat` | `rho_compare_recomputed_global.csv` | medir alineación predictiva |
-| 08 | outputs 05-07 | figuras y manifest | producir evidencia visual final |
+| 00D | FCD parquets bronze | `.trace` por veh/run + `trace_index.json` | acoplamiento secuencial SUMO→OMNeT++ |
+| 00  | configs OMNeT + trazas SUMO | `.sca/.vec` en `data/omnet_results/` | simular red 5G con movilidad real |
+| 01  | `.sca` OMNeT (si existen) | KPIs raw/by-cell | extraer señal de red |
+| 01B | KPI raw + exposure SUMO | `summary_kpis_avg.csv` + `mobility_metrics.parquet` | preparar insumos de unificación |
+| 02  | movilidad + KPI summary | `data/unified_metrics.parquet` | consolidar vista movilidad/red |
+| 03  | route labels/events + FCD | `data/dataset_windows.parquet` | construir dataset Gold |
+| 04  | dataset Gold | `data/ml_table.parquet` | dejar tabla entrenable |
+| 05  | tabla ML | CatBoost + XGBoost + `rho_hat` raw/cal | aprender y calibrar probabilidad |
+| 05B | `rho_hat_calibrated.parquet` | `injection_plan.json` | mapear ρ̂ → config OMNeT++ por run |
+| 05C | `rho_hat_calibrated` + `analytic_rho` | `mmtqhu_validation_report.txt` | MAE por perfil propietario/empleado |
+| 06  | referencia analítica + `rho_hat` | `probabilistic_validity_global.csv` | medir calidad probabilística |
+| 07  | referencia analítica + `rho_hat` | `rho_compare_recomputed_global.csv` | medir alineación predictiva |
+| 08  | outputs 05-07 | G1-G7 PNG/PDF/SVG + manifest | producir evidencia visual final |
+| 09  | `injection_plan.json` + trazas SUMO | `.sca/.vec` en `data/omnet_results_injected/` | OMNeT++ con ρ̂ inyectado (ceteris paribus) |
 
 ---
 
@@ -629,14 +729,19 @@ Opcional:
 
 ## Limitaciones actuales y alcance real
 
-Alcance que sí está cubierto por esta carpeta:
+Alcance cubierto por este repositorio:
 
-- Pipeline de datos+ML+calibración+comparación+figuras.
-- Reproducción operativa de artefactos finales en `reports/`.
+- Pipeline Python completo: Bronze→Silver→Gold→CatBoost+XGBoost→calibración→evaluación→figuras.
+- Acoplamiento secuencial SUMO→OMNeT++ vía `TraceFileMobility` (paso 00D+00).
+- Plan de inyección de ρ̂ en OMNeT++ (pasos 05B y 09).
+- Validación contra perfiles de comportamiento MMtQHU (paso 05C).
+- SHA-256 en manifests de trazabilidad.
 
-Alcance no cubierto al 100% todavía:
+Alcance que requiere instalación externa:
 
-- Re-simulación OMNeT++ completa desde cero dentro del mismo flujo automatizado, incluyendo compilación y ejecución del stack completo (OMNeT/INET/Simu5G/Artery) como parte integrada.
+- **SUMO** (para pasos 00A-00D): `INTAS_RUN_SUMO=1`.
+- **OMNeT++ + INET + Simu5G compilados** (para pasos 00 y 09): `INTAS_RUN_OMNET=1`. El Dockerfile no compila el stack automáticamente.
+- **Config InTAS-10Cells-CBR-DL** y **InTAS-SUMOTrace-CBR-DL**: requieren los archivos NED del framework InTAS (`intas.networks.InTAS_MultiCell_Standalone`). Las configs `SingleConnection-CBR-DL`/`DoubleConnection-CBR-DL` funcionan con Simu5G estándar.
 
 ---
 
@@ -691,14 +796,22 @@ INTAS_FORCE_REBUILD=1 python scripts/run_full_reproduction.py
 python scripts/00a_run_sumo_batch.py
 python scripts/00b_extract_bronze_batch.py
 python scripts/00c_build_silver_theory.py
-python scripts/00_run_omnet_obj2_batch.py
+python scripts/00d_export_sumo_traces_for_omnet.py   # genera trazas SUMO→OMNeT++
+python scripts/00_run_omnet_obj2_batch.py            # usa trazas si existen
 python scripts/01_extract_omnet_kpis.py
 ```
 
-### Ejecutar solo entrenamiento/calibración
+### Ejecutar solo entrenamiento/calibración (CatBoost + XGBoost)
 
 ```bash
 python scripts/05_train_ml_model.py
+```
+
+### Generar plan de inyección ρ̂ y validación MMtQHU
+
+```bash
+python scripts/05b_inject_rho_omnet.py
+python scripts/05c_validate_mmtqhu_profiles.py
 ```
 
 ### Ejecutar solo evaluación y comparación

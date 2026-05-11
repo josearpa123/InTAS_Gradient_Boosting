@@ -1,6 +1,7 @@
 pandas==2.2.3
 numpy==1.26.4
 catboost==1.2.7
+xgboost==2.0.3
 scikit-learn==1.6.1
 joblib==1.4.2
 pyarrow==19.0.1
