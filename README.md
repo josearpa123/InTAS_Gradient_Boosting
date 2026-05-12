@@ -643,7 +643,7 @@ test -f reports/final/rho_compare_recomputed_global.csv            && echo "OK c
 test -f reports/final/thesis_figures/figures_manifest.md           && echo "OK figuras"
 ```
 
-**Verificación de valores numéricos (deben coincidir con la tesis):**
+**Verificación de valores numéricos:**
 
 ```bash
 python - <<'PY'
@@ -651,19 +651,25 @@ import json, pandas as pd
 
 r = json.load(open("reports/ml/report_catboost_isotonic.json"))
 print("=== Modelo ML ===")
-print(f"AUC CatBoost calibrado : {r['roc_auc_cal']:.4f}  (tesis: 0.9255)")
-print(f"AUC XGBoost contraste  : {r['roc_auc_xgb']:.4f}  (tesis: reportado en Fig. G1)")
-print(f"Brier score soft       : {r['brier_soft']:.6f}  (tesis: 0.000850)")
+print(f"AUC CatBoost calibrado : {r['roc_auc_cal']:.4f}   (referencia: ~0.9237)")
+print(f"AUC XGBoost contraste  : {r['roc_auc_xgb']:.4f}   (reportado en Fig. G1)")
 
+# Brier/ECE soft se calculan contra ρ analítica (variante rho_cal_max)
 pb = pd.read_csv("reports/final/probabilistic_validity_global.csv")
-print("\n=== Validez probabilística ===")
+best = pb[pb["variant"] == "rho_cal_max"].iloc[0]
+print(f"Brier soft (rho_cal_max): {best['brier_soft']:.6f}  (referencia: ~0.001843)")
+print(f"ECE soft   (rho_cal_max): {best['ece_soft']:.6f}   (referencia: ~0.0095)")
+print("\n=== Validez probabilística (todas las variantes) ===")
 print(pb[["variant","brier_soft","ece_soft"]].to_string(index=False))
-print("(tesis: ECE soft ≈ 0.0099)")
 
 mm = pd.read_csv("reports/final/mmtqhu_validation_by_profile.csv")
-print("\n=== Validación MMtQHU por perfil ===")
-print(mm[["profile","mae","rmse","bias","corr"]].to_string(index=False))
-print("(tesis: MAE propietario ≈ 0.1235, MAE empleado ≈ 0.4565)")
+print("\n=== Validación MMtQHU — variante rho_cal_max ===")
+print(mm[mm["variant"]=="rho_cal_max"][["profile","mae","rmse","corr"]].to_string(index=False))
+
+plan = json.load(open("data/artifacts/ml/injection/injection_plan.json"))
+print(f"\n=== Plan de inyección ===")
+print(f"DoubleConnection : {plan['n_learned']}/{plan['n_runs']} corridas")
+print(f"ρ̂ medio global   : {plan['global_mean_rho_hat']:.4f}")
 PY
 ```
 

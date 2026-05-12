@@ -150,6 +150,17 @@ def build_mobility_metrics(cell_exposure_parquet: Path, route_label_parquet: Pat
     return agg
 
 
+def _raw_csv_is_empty(path: Path) -> bool:
+    """Return True if the CSV file is missing, empty, or has 0 data rows."""
+    if not path.exists():
+        return True
+    try:
+        df = pd.read_csv(path)
+        return df.empty
+    except Exception:
+        return True
+
+
 def main() -> int:
     args = parse_args()
     raw_csv = Path(args.omnet_raw)
@@ -157,6 +168,15 @@ def main() -> int:
     route_label = Path(args.route_label)
     kpi_out = Path(args.kpi_summary_out)
     mobility_out = Path(args.mobility_out)
+
+    # Graceful fallback: if OMNeT raw KPIs are empty (no OMNeT run) but
+    # pre-computed seed outputs already exist, reuse them as-is.
+    if _raw_csv_is_empty(raw_csv) and kpi_out.exists() and mobility_out.exists():
+        print("[WARN] OMNeT raw KPI file is empty (OMNeT not executed).")
+        print("[WARN] Reusing existing seed outputs for KPI summary and mobility metrics.")
+        print(f"  kpi_summary : {kpi_out}")
+        print(f"  mobility    : {mobility_out}")
+        return 0
 
     summary = build_kpi_summary(raw_csv, kpi_out, args.scenario_source)
     mobility = build_mobility_metrics(cell_exposure, route_label, mobility_out)

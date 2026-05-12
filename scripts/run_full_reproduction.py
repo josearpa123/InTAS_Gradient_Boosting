@@ -7,8 +7,8 @@ def run_step(name, command):
     print(f"\n{'='*70}")
     print(f" [PASO {name[:2]}] EJECUTANDO: {name[3:]}")
     print(f"{'='*70}")
-    # Usamos python3 para asegurar compatibilidad en Linux/Docker
-    cmd = command.replace("python ", "python3 ")
+    # Usar el mismo intérprete que lanzó el orquestador (respeta venv activo)
+    cmd = command.replace("python ", sys.executable + " ")
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0:
         print(f"[ERROR CRÍTICO] El paso '{name}' falló con código {result.returncode}.")

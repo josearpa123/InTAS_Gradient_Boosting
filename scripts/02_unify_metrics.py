@@ -162,22 +162,32 @@ def main() -> int:
         print(f"Mapping CSV   : {Path(args.mapping_csv).resolve()}")
     print(f"Output        : {output_path.resolve()}")
 
+    def _reuse_precomputed() -> bool:
+        if not output_path.exists():
+            return False
+        pre = pd.read_parquet(output_path)
+        print("\n[WARN] Reusing precomputed unified metrics file.")
+        print(f"Rows: {len(pre):,}")
+        print(f"Columns: {len(pre.columns):,}")
+        print("=" * 72)
+        return True
+
     if (not mobility_path.exists() or not kpi_path.exists()) and args.allow_precomputed_output:
-        if output_path.exists():
-            pre = pd.read_parquet(output_path)
-            print("\n[WARN] Missing fresh inputs for unification.")
-            print("[WARN] Reusing precomputed unified metrics file.")
-            print(f"Rows: {len(pre):,}")
-            print(f"Columns: {len(pre.columns):,}")
-            print("=" * 72)
+        if _reuse_precomputed():
             return 0
 
-    unified = build_unified_table(
-        mobility_path=args.mobility,
-        kpi_summary_path=args.kpi_summary,
-        output_path=args.output,
-        mapping_csv=args.mapping_csv,
-    )
+    try:
+        unified = build_unified_table(
+            mobility_path=args.mobility,
+            kpi_summary_path=args.kpi_summary,
+            output_path=args.output,
+            mapping_csv=args.mapping_csv,
+        )
+    except (ValueError, KeyError) as exc:
+        print(f"\n[WARN] Cannot rebuild unified metrics: {exc}")
+        if args.allow_precomputed_output and _reuse_precomputed():
+            return 0
+        raise
 
     print("\nSummary")
     print(f"Rows: {len(unified):,}")

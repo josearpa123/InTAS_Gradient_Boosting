@@ -23,12 +23,13 @@ WORKDIR /app
 
 # 5. INSTALACIÓN DE DEPENDENCIAS PYTHON (Versiones Exactas)
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Crear venv explícito para evitar conflictos PEP 668 en Ubuntu 22.04+
+RUN python3 -m venv /app/.venv && \
+    /app/.venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # 6. COPIA DEL REPOSITORIO LIMPIO
 COPY . .
 
 # 7. SCRIPT DE ENTRADA (Reproducción del Pipeline de la Tesis)
-# Este script ejecuta: 
-# 01 (KPIs) -> 02 (Unify) -> 03 (Gold) -> 04 (Table) -> 05 (Train) -> 06 (Prob) -> 07 (Compare) -> 08 (Figures)
-CMD ["python3", "scripts/run_full_reproduction.py"]
+# El orquestador usa sys.executable → todos los subprocesos usan el mismo venv.
+CMD ["/app/.venv/bin/python", "scripts/run_full_reproduction.py"]

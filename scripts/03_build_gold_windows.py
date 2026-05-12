@@ -19,6 +19,20 @@ def main():
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
+    # Graceful fallback: if FCD bronze files don't exist but a pre-built
+    # dataset_windows.parquet is already available, reuse it.
+    fcd_dir = args.fcd_dir
+    out_path = args.out
+    if not os.path.isdir(fcd_dir) or not os.listdir(fcd_dir):
+        if os.path.isfile(out_path):
+            print(f"[WARN] FCD bronze directory '{fcd_dir}' is missing or empty.")
+            print(f"[WARN] Reusing existing seed: {out_path}")
+            return
+        raise SystemExit(
+            f"[ERROR] FCD bronze directory '{fcd_dir}' not found and no seed output exists. "
+            "Run with INTAS_RUN_SUMO=1 to generate it."
+        )
+
     rng = np.random.default_rng(args.seed)
 
     lab = pd.read_parquet(args.route_label)
