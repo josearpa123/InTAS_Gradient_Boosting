@@ -1,0 +1,54 @@
+sequenceDiagram
+    participant User as Investigador
+    participant Orch as Orquestador
+    participant P01B as 01b_prepare
+    participant P02 as 02_unify
+    participant P03 as 03_gold
+    participant P04 as 04_ml_table
+    participant P05 as 05_train
+    participant P05B as 05b_inject
+    participant P06 as 06_brier_ece
+    participant P07 as 07_compare
+    participant P08 as 08_figures
+
+    User->>Orch: python run_full_reproduction.py
+    Orch->>Orch: INTAS_RUN_SUMO=0, INTAS_RUN_OMNET=0
+    Note over Orch: Pasos 00A-00D y 00 se saltan
+    
+    Orch->>P01B: scripts/01b_prepare_unify_inputs.py
+    P01B->>P01B: kpis_omnet_raw.csv vacío → fallback a seed
+    P01B-->>Orch: [OK] summary_kpis_avg.csv, mobility_metrics.parquet
+
+    Orch->>P02: scripts/02_unify_metrics.py
+    P02->>P02: join mobility + KPIs por (run_id, cell_id)
+    P02-->>Orch: [OK] unified_metrics.parquet (1800 × 447)
+
+    Orch->>P03: scripts/03_build_gold_windows.py
+    P03->>P03: FCD bronze vacío → fallback a seed
+    P03-->>Orch: [OK] dataset_windows.parquet (42503 × 43)
+
+    Orch->>P04: scripts/04_build_ml_table.py
+    P04-->>Orch: [OK] ml_table.parquet
+
+    Orch->>P05: scripts/05_train_ml_model.py
+    P05->>P05: GroupShuffleSplit(test_size=0.2)
+    P05->>P05: CatBoost fit (1200 iter, depth=8, lr=0.06)
+    P05->>P05: IsotonicRegression calibration
+    P05->>P05: XGBoost fit (contraste)
+    P05-->>Orch: [OK] catboost_gbdt.cbm, isotonic.joblib, xgboost_ref.json
+    P05-->>Orch: [OK] rho_hat_raw.parquet, rho_hat_calibrated.parquet
+
+    Orch->>P05B: scripts/05b_inject_rho_omnet.py
+    P05B->>P05B: mean(ρ̂) ≥ 0.5 → DoubleConnection
+    P05B-->>Orch: [OK] injection_plan.json (165 Double / 15 Single)
+
+    Orch->>P06: scripts/06_evaluate_probabilistic.py
+    P06-->>Orch: [OK] Brier=0.001843, ECE=0.009466 (rho_cal_max)
+
+    Orch->>P07: scripts/07_compare_analytic_vs_learned.py
+    P07-->>Orch: [OK] rho_compare_recomputed_global.csv
+
+    Orch->>P08: scripts/08_generate_figures.py
+    P08-->>Orch: [OK] G1-G7 PDF/SVG/PNG
+
+    Orch-->>User: ¡PROCESO COMPLETADO!

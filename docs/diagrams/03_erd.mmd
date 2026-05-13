@@ -1,0 +1,67 @@
+erDiagram
+    CORRIDA {
+        string run_id PK
+        string period
+        string policy
+        int rep
+        float rho_analitica
+    }
+
+    VEHICULO {
+        string vehID PK
+        string run_id FK
+        string perfil_mmtqhu
+        int label
+    }
+
+    CELL_EXPOSURE {
+        string run_id FK
+        string vehID FK
+        string cell_id
+        float time_s
+    }
+
+    ROUTE_EVENTS {
+        string run_id FK
+        string vehID FK
+        float t_ref
+        int event_type
+    }
+
+    GOLD_WINDOW {
+        string run_id FK
+        string vehID FK
+        float t_ref
+        string cell_id FK
+        int label
+        float speed_mean
+        float speed_std
+        float accel_mean
+        float accel_std
+        float jerk_abs_mean
+        int stops_count
+        float network_sinr_mean
+        float prb_usage_dl
+    }
+
+    ML_PREDICTION {
+        string run_id FK
+        string vehID FK
+        float t_ref
+        float rho_hat_raw
+        float rho_hat_cal
+    }
+
+    INJECTION_PLAN {
+        string run_id FK
+        string selected_conf
+        float rho_hat_mean
+        bool rho_above_threshold
+    }
+
+    CORRIDA ||--o{ VEHICULO : "tiene"
+    VEHICULO ||--o{ CELL_EXPOSURE : "registra"
+    VEHICULO ||--o{ ROUTE_EVENTS : "genera"
+    VEHICULO ||--o{ GOLD_WINDOW : "produce"
+    GOLD_WINDOW ||--o{ ML_PREDICTION : "alimenta"
+    CORRIDA ||--|| INJECTION_PLAN : "determina"

@@ -1,0 +1,29 @@
+graph TB
+    subgraph HOST["Maquina Host (Windows / Linux / macOS)"]
+        D[Docker Engine]
+    end
+
+    subgraph CONTAINER["Contenedor InTAS - Ubuntu 22.04"]
+        OS[Ubuntu 22.04 base]
+        SUMO_PKG["sumo + sumo-tools
+via apt-get"]
+        VENV["Entorno virtual Python
+/app/.venv"]
+        DEPS["requirements.txt
+pandas 2.2.3 / numpy 1.26.4
+catboost 1.2.7 / xgboost 2.0.3
+scikit-learn 1.6.1 / pyarrow 19.0.1
+matplotlib 3.10.0 / scipy 1.15.2"]
+        APP["Repositorio InTAS
+/app/"]
+        ENTRY["CMD: python
+scripts/run_full_reproduction.py"]
+
+        OS --> SUMO_PKG
+        OS --> VENV
+        VENV --> DEPS
+        VENV --> APP
+        APP --> ENTRY
+    end
+
+    D --> CONTAINER

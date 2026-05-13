@@ -90,9 +90,42 @@ sim/runs/**
 *.elog
 
 # -----------------------------
-# Local extraction/export folders
+# Trained model artifacts (thesis originals — tracked explicitly below)
 # -----------------------------
+!data/models/catboost_gbdt.cbm
+!data/models/isotonic.joblib
+!data/models/xgb_encoders.joblib
+!data/models/xgboost_ref.json
+!data/artifacts/ml/final/rho_hat_windows_calibrated.parquet
+!data/artifacts/ml/final/rho_hat_windows_raw.parquet
+
+# -----------------------------
+# Key result reports (tracked for reproducibility validation)
+# -----------------------------
+!reports/final/probabilistic_validity_global.csv
+!reports/final/rho_compare_recomputed_global.csv
+!reports/final/rho_compare_recomputed_report.txt
+!reports/final/mmtqhu_validation_by_profile.csv
+!reports/ml/report_catboost_isotonic.json
+!reports/ml/ablation_auc.csv
+!reports/ml/feature_importance.csv
+
+# -----------------------------
+# Local working files (never publish)
+# -----------------------------
+intas_docs_evidence/
+archivos_para_reproduccion/
+.claude/
 resultados_tesis/
+
+# Intermediate doc versions
+docs/INTAS_Documentacion_Tecnica_actualizada*.docx
+docs/INTAS_Documentacion_Tecnica_S.pdf
+docs/DOCUMENTACION_TECNICA_INTAS.md
+docs/GUIDE.md
+docs/THESIS_INTEGRATION.md
+docs/MANUAL_DISEÑO_INGENIERIA.md
+docs/Integracion de Modelos calibrados de Gradient-2026_nuevo.docx
 
 # -----------------------------
 # OS/editor

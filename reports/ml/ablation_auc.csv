@@ -1,0 +1,4 @@
+scenario,auc
+CatBoost Completo,0.9236938365336695
+XGBoost (contraste),0.9279529576851641
+CatBoost Sin Red,0.9243429721486945

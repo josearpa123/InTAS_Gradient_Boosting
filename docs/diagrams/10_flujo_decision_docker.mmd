@@ -1,0 +1,23 @@
+graph TB
+    subgraph RED5G["Red 5G NR — Ingolstadt (10 celdas)"]
+        GNB1[gNB 1\n5G NR] 
+        GNB2[gNB 2\n5G NR]
+        GNB3[gNB 3\n5G NR]
+        ENB[eNB\nLTE / 4G]
+        
+        UE1[UE Vehículo\n/VFH_ = empleado]
+        UE2[UE Vehículo\nresidente = propietario]
+    end
+
+    subgraph DUAL["Doble Conectividad"]
+        DC[DoubleConnection-CBR-DL\nMaster Cell: eNB\nSecondary Cell: gNB\nSplit Bearer]
+    end
+
+    subgraph SINGLE["Conexión Simple"]
+        SC[SingleConnection-CBR-DL\nSolo eNB o gNB\nBaseline]
+    end
+
+    UE1 & UE2 -->|ρ̂ ≥ 0.5| DC
+    UE1 & UE2 -->|ρ̂ < 0.5| SC
+    DC & SC --- GNB1 & GNB2 & GNB3
+    DC --- ENB

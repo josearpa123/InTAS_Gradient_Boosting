@@ -1,0 +1,42 @@
+flowchart TD
+    Start([Inicio: run_full_reproduction.py]) --> EnvCheck{Leer variables\nde entorno}
+    
+    EnvCheck --> |INTAS_RUN_SUMO=1| SumoBlock[Pasos 00A → 00D\nSUMO batch + Bronze + Silver]
+    EnvCheck --> |INTAS_RUN_OMNET=1| OmnetBlock[Paso 00\nOMNeT++ batch]
+    EnvCheck --> Always[Pasos 01B → 08\nsiempre disponibles]
+
+    SumoBlock --> Always
+    OmnetBlock --> Always
+
+    Always --> P01B{01B: insumos\nexisten?}
+    P01B --> |sí + !FORCE_REBUILD| Skip01B[SKIP 01B]
+    P01B --> |no| Run01B[Ejecutar 01B]
+    
+    Skip01B & Run01B --> P02{02: unified\nexiste?}
+    P02 --> |sí| Skip02[SKIP 02] 
+    P02 --> |no| Run02[Ejecutar 02]
+
+    Skip02 & Run02 --> P03{03: gold\nexiste?}
+    P03 --> |sí| Skip03[SKIP 03]
+    P03 --> |no| Run03[Ejecutar 03]
+
+    Skip03 & Run03 --> P04{04: ml_table\nexiste?}
+    P04 --> |sí| Skip04[SKIP 04]
+    P04 --> |no| Run04[Ejecutar 04]
+
+    Skip04 & Run04 --> P05{05: modelos\nexisten?}
+    P05 --> |sí| Skip05[SKIP 05]
+    P05 --> |no| Run05[Ejecutar 05]
+
+    Skip05 & Run05 --> P05B[05B Inyección]
+    P05B --> P05C[05C MMtQHU]
+    P05C --> P06[06 Brier/ECE]
+    P06 --> P07[07 Comparación]
+    P07 --> P08[08 Figuras]
+    
+    P08 --> End([¡PROCESO COMPLETADO!])
+
+    subgraph LEGEND["Leyenda"]
+        L1[SKIP = salida existe\ny !FORCE_REBUILD]
+        L2[Ejecutar = llama\nrun_step con sys.executable]
+    end

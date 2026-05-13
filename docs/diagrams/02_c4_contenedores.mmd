@@ -1,0 +1,32 @@
+C4Container
+    title Sistema InTAS — Contenedores
+
+    Person(researcher, "Investigador", "Ejecuta y valida el pipeline")
+
+    Container_Boundary(pipeline, "Pipeline InTAS (Python 3.10+)") {
+        Container(orch, "Orquestador", "Python", "run_full_reproduction.py: coordina 17 pasos secuenciales con modo incremental y FORCE_REBUILD")
+        Container(sumo_layer, "Capa SUMO", "Python + SUMO CLI", "Genera corridas, extrae bronze FCD, construye silver y referencia analítica ρ")
+        Container(omnet_layer, "Capa OMNeT++", "Python + OMNeT++ CLI", "Corre simulaciones 5G con TraceFileMobility, extrae KPIs de red")
+        Container(ml_layer, "Capa ML", "Python + CatBoost + XGBoost", "Entrena, calibra, valida y genera plan de inyección de ρ̂")
+        Container(viz_layer, "Capa de Figuras", "Python + Matplotlib", "Genera figuras G1–G7 para la tesis")
+    }
+
+    ContainerDb(bronze, "Bronze", "Parquet / XML", "FCD raw SUMO, resultados .sca/.vec OMNeT++")
+    ContainerDb(silver, "Silver", "Parquet", "cell_exposure, route_label, route_events, analytic_rho")
+    ContainerDb(gold, "Gold", "Parquet", "dataset_windows (42 503 × 43 cols), ml_table")
+    ContainerDb(models, "Models", "CatBoost .cbm, Joblib .joblib, JSON", "catboost_gbdt, isotonic, xgboost_ref, xgb_encoders")
+    ContainerDb(artifacts, "Artifacts", "Parquet / JSON", "rho_hat_raw, rho_hat_calibrated, injection_plan")
+
+    Rel(researcher, orch, "Ejecuta", "CLI / Docker")
+    Rel(orch, sumo_layer, "Coordina")
+    Rel(orch, omnet_layer, "Coordina")
+    Rel(orch, ml_layer, "Coordina")
+    Rel(orch, viz_layer, "Coordina")
+    Rel(sumo_layer, bronze, "Escribe")
+    Rel(sumo_layer, silver, "Escribe")
+    Rel(omnet_layer, bronze, "Escribe")
+    Rel(ml_layer, bronze, "Lee")
+    Rel(ml_layer, silver, "Lee")
+    Rel(ml_layer, gold, "Lee/Escribe")
+    Rel(ml_layer, models, "Escribe")
+    Rel(ml_layer, artifacts, "Escribe")

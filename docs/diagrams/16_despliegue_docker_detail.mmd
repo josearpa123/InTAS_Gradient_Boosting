@@ -1,0 +1,34 @@
+graph TB
+    subgraph REPO["Repositorio Git"]
+        GIT[main branch\nscripts/ config/ scenarios/\ndata/silver/ data/seeds]
+    end
+
+    subgraph LOCAL["Entorno Local (Nivel 1)"]
+        direction LR
+        VENV_L[.venv\nPython 3.10+]
+        ORCH_L[run_full_reproduction.py]
+        OUT_L[reports/ data/models/\ndata/artifacts/]
+        
+        VENV_L --> ORCH_L --> OUT_L
+    end
+
+    subgraph DOCKER_ENV["Entorno Docker (Nivel 1)"]
+        IMG[intas:1.0\nUbuntu 22.04\n+ SUMO + venv]
+        ORCH_D[run_full_reproduction.py]
+        VOLS[Volumen:\n/app/reports]
+        
+        IMG --> ORCH_D --> VOLS
+    end
+
+    subgraph HPC["Clúster HPC (Niveles 2-3)"]
+        SUMO_HPC[SUMO v1.16+\nBatch 180 corridas]
+        OMNET_HPC[OMNeT++ v6.0\n+ Simu5G + INET]
+        ORCH_HPC[Orquestador\n+ Python ML]
+        
+        SUMO_HPC --> ORCH_HPC
+        OMNET_HPC --> ORCH_HPC
+    end
+
+    GIT --> LOCAL
+    GIT --> DOCKER_ENV
+    GIT --> HPC

@@ -1,0 +1,31 @@
+flowchart LR
+    subgraph BRONZE["Bronze (raw)"]
+        B1[FCD XML por corrida\nPosición, velocidad,\naceleración por timestep]
+        B2[OMNeT++ .sca/.vec\nSINR, PRB, CDR\npor celda y tiempo]
+    end
+
+    subgraph SILVER["Silver (limpio)"]
+        S1[cell_exposure.parquet\nrun_id, vehID, cell_id, time_s]
+        S2[route_label.parquet\nrun_id, vehID, label, period, policy, rep]
+        S3[route_events.parquet\nrun_id, vehID, t_ref]
+        S4[analytic_rho_reference.parquet\nrun_id, rho_analitica]
+    end
+
+    subgraph UNIFIED["Unified"]
+        U1[unified_metrics.parquet\n1800 × 447 cols\nrun_id, cell_id, network_*]
+    end
+
+    subgraph GOLD["Gold"]
+        G1[dataset_windows.parquet\n42503 × 43 cols\nRun_id, vehID, t_ref,\ncell_id, label,\ncinemáticas, red]
+    end
+
+    B1 -->|00b: parse XML| S1
+    B1 -->|00c: label + eventos| S2
+    B1 -->|00c: eventos| S3
+    B1 -->|00c: analytic ρ| S4
+    B2 -->|01: extract KPIs| U1
+    S1 -->|02: join| U1
+    S2 -->|03: ventanas 30s| G1
+    S3 -->|03: t_ref| G1
+    S1 -->|03: cell_id| G1
+    U1 -->|03: network_*| G1

@@ -1,0 +1,44 @@
+flowchart TD
+    subgraph INPUT["Entrada"]
+        I1["Features Cinematicas
+speed_mean, speed_std
+accel_mean, accel_std
+jerk_abs_mean, stops_count"]
+        I2["Features de Red 5G
+network_sinr_mean, network_sinr_std
+network_prb_usage_dl
+network_cdr"]
+        I3["Features Categoricas
+cell_id, period, policy"]
+    end
+
+    subgraph MODEL["Modelo Principal"]
+        CB["CatBoost GBDT
+Iterations: 1200
+Depth: 8 / LR: 0.06
+L2: 3.0 / EarlyStop: 80"]
+        ISO["Isotonic Regression
+Calibracion monotonica
+out_of_bounds=clip"]
+    end
+
+    subgraph CONTRAST["Modelo de Contraste"]
+        XGB["XGBoost GBDT
+Mismos hiperparametros
++ LabelEncoder categoricas"]
+    end
+
+    subgraph OUTPUT["Salida"]
+        R["rho_hat_raw
+Score no calibrado
+CatBoost.predict_proba"]
+        C["rho_hat_cal
+Probabilidad calibrada
+iso.predict(rho_hat_raw)"]
+    end
+
+    I1 & I2 & I3 --> CB
+    I1 & I2 & I3 --> XGB
+    CB --> R
+    R --> ISO
+    ISO --> C

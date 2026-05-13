@@ -1,0 +1,23 @@
+stateDiagram-v2
+    [*] --> EnRuta: Vehículo inicia corrida SUMO
+    
+    EnRuta --> EnCelda: Vehículo entra en área de celda 5G
+    EnCelda --> EnRuta: Sale de celda (exposición registrada)
+    
+    EnRuta --> EventoDesvio: Vehículo cambia ruta ≠ planificada
+    EventoDesvio --> Etiquetado: label=1 en route_label\nt_ref en route_events
+    
+    EnRuta --> FinRuta: Vehículo completa recorrido\nsin desvío (label=0)
+    
+    Etiquetado --> VentanaGold: Construir ventana 30s\nanteriores a t_ref
+    FinRuta --> VentanaGold: Asignar t_ref aleatorio\ndistribuido como positivos
+    
+    VentanaGold --> Prediccion: Calcular features\nCatBoost.predict_proba
+    Prediccion --> Calibracion: IsotonicRegression.predict
+    
+    Calibracion --> DecisionRed: ρ̂_cal ≥ 0.5?
+    DecisionRed --> DoubleConnection: [sí] Activar doble\nconectividad proactiva
+    DecisionRed --> SingleConnection: [no] Mantener\nconexión baseline
+    
+    DoubleConnection --> [*]
+    SingleConnection --> [*]

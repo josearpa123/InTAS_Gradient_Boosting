@@ -1,0 +1,24 @@
+flowchart TD
+    START([¿Cómo quiero ejecutar InTAS?]) --> Q1{¿Tengo Docker\ninstalado?}
+
+    Q1 -->|Sí| Q2{¿Qué nivel\nnecesito?}
+    Q1 -->|No| Q3{¿Tengo Python 3.10+\ninstalado?}
+
+    Q2 -->|Solo verificar resultados ML\nde la tesis| D1["▶ Opción B — Docker Nivel 1\ndocker build -t intas:1.0 .\ndocker run --name intas-run intas:1.0\n⏱ ~15 minutos"]
+    Q2 -->|Regenerar datos SUMO\ndesde cero| D2["▶ Opción B — Docker Nivel 2\ndocker run -e INTAS_RUN_SUMO=1 intas:1.0\n⏱ 2-6 horas"]
+    Q2 -->|Regenerar red 5G\nOMNeT++ desde cero| D3["⚠ Opción D — OMNeT++ manual\nNo disponible en Docker actual\nRequiere instalación manual"]
+
+    Q3 -->|Sí| Q4{¿Necesito\nSUMO?}
+    Q3 -->|No| D4["Instalar Python 3.10+ desde\npython.org\nluego usar Opción A"]
+
+    Q4 -->|No — solo ML| D5["▶ Opción A — Python local\npython3 -m venv .venv\npip install -r requirements.txt\npython scripts/run_full_reproduction.py\n⏱ ~15 minutos"]
+    Q4 -->|Sí| D6["▶ Opción C — Python + SUMO\napt-get install sumo sumo-tools\nINTAS_RUN_SUMO=1 python scripts/run_full_reproduction.py\n⏱ 2-6 horas"]
+
+    D1 & D2 & D5 & D6 --> VERIFY["✅ Verificar resultados:\nAUC ~0.9255\nBrier ~0.001843\nECE ~0.009466\nDoubleConnection: 165/180"]
+
+    style D1 fill:#c8e6c9,stroke:#388E3C
+    style D2 fill:#fff9c4,stroke:#F9A825
+    style D3 fill:#ffcdd2,stroke:#D32F2F
+    style D5 fill:#c8e6c9,stroke:#388E3C
+    style D6 fill:#fff9c4,stroke:#F9A825
+    style VERIFY fill:#e3f2fd,stroke:#1976D2

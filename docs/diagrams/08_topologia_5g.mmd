@@ -1,0 +1,6 @@
+flowchart LR
+    V1["NIVEL 1\nValidación Discriminativa\nAUC ROC, Average Precision\nCapacidad de separar\ndesvíos de no-desvíos"]
+    V2["NIVEL 2\nValidación Probabilística\nBrier Score (soft)\nECE (soft)\nCalidad de probabilidades\nvs. rho analítica"]
+    V3["NIVEL 3\nValidación Comportamental\nMMtQHU Profiles\nMAE/RMSE/Pearson-r\npor perfil de conductor"]
+
+    V1 --> V2 --> V3

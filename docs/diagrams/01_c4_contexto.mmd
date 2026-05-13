@@ -1,0 +1,15 @@
+C4Context
+    title Sistema InTAS — Contexto
+
+    Person(researcher, "Investigador / Revisor", "Ejecuta el pipeline, analiza resultados")
+    
+    System(intas, "Sistema InTAS", "Pipeline CPSS integrado: simulación vehicular, red 5G y ML calibrado para predicción de desvío de ruta")
+    
+    System_Ext(sumo, "SUMO v1.16+", "Simulador de tráfico microscópico. Genera trayectorias vehiculares (FCD) sobre la red de Ingolstadt")
+    System_Ext(omnet, "OMNeT++ v6.0\nSimu5G 1.3 / INET 4.4", "Simulador de red 5G NR. Mide SINR, PRB usage y CDR por corrida")
+    System_Ext(docker, "Docker Hub / Ubuntu 22.04", "Imagen base para reproducibilidad del entorno de ejecución")
+
+    Rel(researcher, intas, "Ejecuta pipeline completo o por niveles")
+    Rel(intas, sumo, "Lanza corridas batch y extrae trazas FCD (INTAS_RUN_SUMO=1)")
+    Rel(intas, omnet, "Lanza corridas con trazas SUMO reales (INTAS_RUN_OMNET=1)")
+    Rel(intas, docker, "Construye imagen reproducible")

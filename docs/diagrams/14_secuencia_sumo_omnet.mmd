@@ -1,0 +1,44 @@
+flowchart LR
+    subgraph TRAIN["Entrenamiento (offline)"]
+        direction TB
+        ML["ml_table.parquet
+42503 x 43 cols"]
+        GSS["GroupShuffleSplit
+by run_id
+80% train / 20% test"]
+        CB_TRAIN["CatBoost.fit
+train set"]
+        ISO_TRAIN["IsotonicRegression.fit
+p_raw_test vs y_test"]
+        XGB_TRAIN["XGBoost.fit
+train set + LabelEncoder"]
+
+        ML --> GSS
+        GSS -->|X_train, y_train| CB_TRAIN
+        CB_TRAIN -->|p_raw_test| ISO_TRAIN
+        GSS -->|X_train, y_train| XGB_TRAIN
+    end
+
+    subgraph ARTIFACTS["Artefactos guardados"]
+        CBM[catboost_gbdt.cbm]
+        JOBLIB[isotonic.joblib]
+        XJSON[xgboost_ref.json]
+        ENC[xgb_encoders.joblib]
+    end
+
+    subgraph INFERENCE["Inferencia (online)"]
+        X_NEW["Nueva ventana
+cinematicas + red + categoricas"]
+        CB_INF[CatBoost.predict_proba]
+        ISO_INF[IsotonicRegression.predict]
+        RHO["rho_hat_calibrado
+valor en 0 a 1"]
+
+        X_NEW --> CB_INF --> ISO_INF --> RHO
+    end
+
+    CB_TRAIN --> CBM
+    ISO_TRAIN --> JOBLIB
+    XGB_TRAIN --> XJSON & ENC
+    CBM --> CB_INF
+    JOBLIB --> ISO_INF

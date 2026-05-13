@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant S as SUMO v1.16+
+    participant E as 00d_export_traces.py
+    participant O as OMNeT++ v6.0
+    participant I as INET 4.4 TraceFileMobility
+
+    S->>S: Simular tráfico vehicular\n(200-500 vehículos, 3600s)
+    S->>S: Generar FCD XML\n(posición, velocidad, aceleración por timestep)
+    S->>E: FCD XML por corrida
+    E->>E: Convertir a formato\nTraceFileMobility
+    E->>I: Archivo de trazas\n(time, x, y por vehículo)
+    I->>O: Reproducir trayectoria\ncomo movilidad en OMNeT++
+    O->>O: Simular red 5G NR\n(gNB, eNB, UE = vehículos)
+    O->>O: Medir SINR, PRB, CDR\npor celda

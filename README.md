@@ -36,7 +36,7 @@ Este documento describe, con detalle técnico y operativo, cómo funciona el paq
 El ecosistema InTAS modela un sistema CPSS (Cyber-Physical-Social System) donde:
 
 - La capa física se observa a través de movilidad vehicular (SUMO).
-- La capa ciber se modela con red celular (OMNeT++/Simu5G/INET/Artery en la visión completa).
+- La capa ciber se modela con red celular (OMNeT++/Simu5G/INET/Veins en la visión completa, con TraCI como protocolo de co-simulación SUMO↔OMNeT++).
 - La capa social se aproxima mediante incertidumbre de comportamiento de los conductores.
 
 En esta carpeta (`InTAS_PRODUCCION_READY`) se entrega un pipeline orientado a reproducibilidad de resultados de analítica y ML, con artefactos de datos ya organizados.
@@ -336,7 +336,7 @@ docker run --name intas-container-full -e INTAS_RUN_SUMO=1 -e INTAS_RUN_OMNET=1 
 
 Nota:
 
-- `INTAS_RUN_OMNET=1` requiere stack OMNeT/INET/Simu5G/Artery compilado y accesible en el contenedor.
+- `INTAS_RUN_OMNET=1` requiere stack OMNeT/INET/Simu5G/Veins compilado y accesible en el contenedor.
 - El Dockerfile actual no compila automáticamente ese stack.
 
 ### 3) Copiar resultados al host
@@ -651,14 +651,14 @@ import json, pandas as pd
 
 r = json.load(open("reports/ml/report_catboost_isotonic.json"))
 print("=== Modelo ML ===")
-print(f"AUC CatBoost calibrado : {r['roc_auc_cal']:.4f}   (referencia: ~0.9237)")
+print(f"AUC CatBoost calibrado : {r['roc_auc_cal']:.4f}   (referencia: ~0.9255)")
 print(f"AUC XGBoost contraste  : {r['roc_auc_xgb']:.4f}   (reportado en Fig. G1)")
 
 # Brier/ECE soft se calculan contra ρ analítica (variante rho_cal_max)
 pb = pd.read_csv("reports/final/probabilistic_validity_global.csv")
 best = pb[pb["variant"] == "rho_cal_max"].iloc[0]
-print(f"Brier soft (rho_cal_max): {best['brier_soft']:.6f}  (referencia: ~0.001843)")
-print(f"ECE soft   (rho_cal_max): {best['ece_soft']:.6f}   (referencia: ~0.0095)")
+print(f"Brier soft (rho_cal_max): {best['brier_soft']:.6f}  (referencia: ~0.000850)")
+print(f"ECE soft   (rho_cal_max): {best['ece_soft']:.6f}   (referencia: ~0.009945)")
 print("\n=== Validez probabilística (todas las variantes) ===")
 print(pb[["variant","brier_soft","ece_soft"]].to_string(index=False))
 
@@ -803,7 +803,7 @@ Alcance que requiere instalación externa:
 Para pasar de estado actual a estado full end-to-end desde simulación:
 
 1. Versionar dependencias de simulación con commits fijos.
-2. Añadir Docker/CI que compile stack OMNeT/INET/Simu5G/Artery.
+2. Añadir Docker/CI que compile stack OMNeT/INET/Simu5G/Veins.
 3. Implementar runner batch de corridas (escenarios × políticas × réplicas).
 4. Integrar extracción automática `.sca/.vec/.xml` hacia `data/`.
 5. Encadenar runner de simulación con etapas 01-08 en un único comando reproducible.
@@ -954,16 +954,16 @@ Sí para la ejecución del pipeline dentro del contenedor, incluyendo ML y compa
 
 ### ¿Este paquete ya compila y ejecuta OMNeT completo automáticamente?
 
-No. El flujo OMNeT se puede orquestar (`INTAS_RUN_OMNET=1`), pero la compilación automática completa del stack OMNeT/INET/Simu5G/Artery no está integrada en el Dockerfile actual.
+No. El flujo OMNeT se puede orquestar (`INTAS_RUN_OMNET=1`), pero la compilación automática completa del stack OMNeT/INET/Simu5G/Veins no está integrada en el Dockerfile actual.
 
 ---
 
 ## Documentación relacionada
 
 - `README_DOCKER.md`: guía específica de contenedor.
-- `docs/GUIDE.md`: guía operativa resumida.
-- `docs/MANUAL_DISEÑO_INGENIERIA.md`: manual técnico de arquitectura.
-- `docs/THESIS_INTEGRATION.md`: texto y alineación de integración para reporte académico.
+- `docs/InTAS_Documentacion_Tecnica_Software_v1.0.docx`: documentación técnica completa del software (arquitectura, pipeline, integración SUMO↔OMNeT++ con Veins/TraCI, modelos ML, validación experimental). Norma IEEE 1016-2009 / ISO/IEC 25010.
+- `docs/DOCUMENTACION_COMPLETA_INTAS.md`: fuente markdown de la documentación técnica.
+- `docs/diagrams/`: diagramas C4, ERD, pipeline, topología 5G y secuencias en formato PNG y Mermaid.
 
 ---
 

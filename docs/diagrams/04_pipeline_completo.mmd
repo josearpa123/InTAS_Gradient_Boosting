@@ -1,0 +1,32 @@
+flowchart TD
+    subgraph NIVEL0["NIVEL 0 — Simulación (opcional, INTAS_RUN_SUMO/OMNET=1)"]
+        A0A[00a: SUMO Batch\n180 corridas XML] --> A0B[00b: Extracción Bronze\nFCD Parquet]
+        A0B --> A0C[00c: Silver + Referencia ρ\ncell_exposure, route_label,\nroute_events, analytic_rho]
+        A0C --> A0D[00d: Exportar trazas\nSUMO→OMNeT++]
+        A0D --> A0E[00: OMNeT++ Batch\nbaseline + learned\n.sca / .vec]
+        A0E --> A01[01: Extraer KPIs\nPRB, SINR, CDR]
+    end
+
+    subgraph NIVEL1["NIVEL 1 — Procesamiento y ML (siempre ejecutable)"]
+        B01B[01b: Preparar insumos\nkpi_summary + mobility] --> B02[02: Unificar Métricas\nunified_metrics.parquet]
+        B02 --> B03[03: Gold Windows\ndataset_windows.parquet\n42 503 × 43 cols]
+        B03 --> B04[04: ML Table\nml_table.parquet]
+        B04 --> B05[05: Entrenar\nCatBoost + XGBoost\n+ Isotonic Calibration]
+        B05 --> B05B[05b: Plan Inyección\ninjection_plan.json]
+        B05 --> B05C[05c: Validar MMtQHU\npropietario / empleado]
+        B05 --> B06[06: Brier + ECE soft]
+        B06 --> B07[07: Comparación\nρ̂ vs ρ analítica]
+        B07 --> B08[08: Figuras G1–G7\nPDF / SVG / PNG]
+    end
+
+    subgraph NIVEL2["NIVEL 2 — Reinyección en OMNeT++ (requiere OMNET)"]
+        C09[09: OMNeT++ con ρ̂\nDoubleConnection vs Single\nceteris paribus]
+    end
+
+    A01 --> B01B
+    A0C --> B01B
+    B05B --> C09
+
+    style NIVEL0 fill:#e8f4f8,stroke:#2196F3
+    style NIVEL1 fill:#e8f8e8,stroke:#4CAF50
+    style NIVEL2 fill:#fff8e1,stroke:#FF9800
