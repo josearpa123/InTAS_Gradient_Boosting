@@ -1,0 +1,22 @@
+========================================================================
+PLAN DE INYECCIÓN DE ρ̂ EN OMNeT++
+========================================================================
+
+Umbral de decisión : 0.5
+Config baseline    : SingleConnection-CBR-DL
+Config learned     : DoubleConnection-CBR-DL
+
+Total de corridas  : 180
+→ Learned (ρ̂ ≥ 0.5): 165  (91.7%)
+→ Baseline (ρ̂ < 0.5): 15  (8.3%)
+ρ̂ medio global    : 0.6667
+
+INTERPRETACIÓN:
+  Cuando ρ̂ ≥ umbral el estimador ML predice que el vehículo
+  desviará su ruta y se activa doble conectividad proactiva
+  (DoubleConnection-CBR-DL → política ceiling anticipada).
+  Cuando ρ̂ < umbral se mantiene la conexión única (baseline).
+
+Plan guardado en   : data/artifacts/ml/injection/injection_plan.json
+CSV de auditoría   : data/artifacts/ml/injection/injection_plan.csv
+========================================================================
